@@ -317,24 +317,27 @@ document.addEventListener('DOMContentLoaded', function() {
     let lastSelectedBox = null;
     let lastSelectedPoints = 0;
 
-    // Success button: add points to selected team and remove the box
+    // Success button: add points to selected team and disable the box
     successBtn.addEventListener('click', async () => {
         if (!lastSelectedBox || lastSelectedBox.disabled) return;
         const teamIdx = getSelectedTeam();
         const pts = lastSelectedPoints;
         if (pts > 0) {
             await addPointsToTeam(teamIdx, pts);
-            // Remove the box from the grid after counting
-            lastSelectedBox.remove();
+            lastSelectedBox.disabled = true;
+            lastSelectedBox.classList.add('disabled');
+            lastSelectedBox.classList.remove('clicked');
             lastSelectedBox = null;
             lastSelectedPoints = 0;
         }
     });
 
-    // Miss button: just remove the box, do not add points
+    // Miss button: just disable the box, do not add points
     missBtn.addEventListener('click', () => {
         if (!lastSelectedBox || lastSelectedBox.disabled) return;
-        lastSelectedBox.remove();
+        lastSelectedBox.disabled = true;
+        lastSelectedBox.classList.add('disabled');
+        lastSelectedBox.classList.remove('clicked');
         lastSelectedBox = null;
         lastSelectedPoints = 0;
     });
