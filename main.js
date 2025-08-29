@@ -31,6 +31,19 @@ document.addEventListener('DOMContentLoaded', function() {
             if (c === 1) {
                 btn.dataset.link = `emoji${r}00.html`;
             }
+            // Auto-link for second column
+            if (c === 2) {
+                btn.dataset.link = `movie${r}00.html`;
+            }
+            if (c === 3) {
+                btn.dataset.link = `place${r}00.html`;
+            }
+            if (c === 4) {
+                btn.dataset.link = `flag${r}00.html`;
+            }
+            if (c === 5) {
+                btn.dataset.link = `music${r}00.html`;
+            }
 
             // Add disable button (top-right corner)
             const disableBtn = document.createElement('span');
