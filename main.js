@@ -22,16 +22,84 @@ document.addEventListener('DOMContentLoaded', function() {
             if (r >= 1 && r <= 7) labelText = `${r}00`;
             btn.innerHTML = `<span class="label">${labelText}</span>`;
 
+            // Add disable button (top-right corner)
+            const disableBtn = document.createElement('span');
+            disableBtn.textContent = '✖';
+            disableBtn.title = 'Disable this box';
+            disableBtn.className = 'remove-btn';
+            disableBtn.style.position = 'absolute';
+            disableBtn.style.top = '0.2vw';
+            disableBtn.style.right = '0.5vw';
+            disableBtn.style.fontSize = '1.2vw';
+            disableBtn.style.cursor = 'pointer';
+            disableBtn.style.opacity = '0.5';
+            disableBtn.style.zIndex = '2';
+            disableBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                btn.disabled = true;
+                btn.classList.add('disabled');
+            });
+            btn.appendChild(disableBtn);
+
+            // Add link button (top-left corner)
+            const linkBtn = document.createElement('span');
+            linkBtn.textContent = '🔗';
+            linkBtn.title = 'Link to another HTML file';
+            linkBtn.className = 'link-btn';
+            linkBtn.style.position = 'absolute';
+            linkBtn.style.top = '0.2vw';
+            linkBtn.style.left = '0.5vw';
+            linkBtn.style.fontSize = '1.2vw';
+            linkBtn.style.cursor = 'pointer';
+            linkBtn.style.opacity = '0.5';
+            linkBtn.style.zIndex = '2';
+            linkBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const url = prompt('Enter the relative path to the HTML file (e.g. "other.html"):', btn.dataset.link || '');
+                if (url) {
+                    btn.dataset.link = url;
+                    linkBtn.style.opacity = '1';
+                } else {
+                    delete btn.dataset.link;
+                    linkBtn.style.opacity = '0.5';
+                }
+            });
+            btn.appendChild(linkBtn);
+
             btn.addEventListener('click', async (ev)=>{
-                storeUndo(btn);
-                // Remove highlight from all boxes before highlighting the clicked one
+                if (btn.disabled) return;
+                // Only highlight the clicked box, keep it highlighted until another is clicked or reset
                 document.querySelectorAll('.box').forEach(b => b.classList.remove('clicked'));
+                btn.classList.add('clicked');
+                lastSelectedBox = btn;
+                lastSelectedPoints = getPointsFromBox(btn);
+
+                // If linked, open the link and do not remove the box
+                if (btn.dataset.link) {
+                    window.open(btn.dataset.link, '_blank');
+                    return;``
+                }
+
+                // Store undo state: if box will be removed, save its parent, nextSibling, and all relevant info
+                storeUndo({
+                    type: 'remove',
+                    box: btn,
+                    parent: btn.parentNode,
+                    nextSibling: btn.nextSibling,
+                    label: btn.querySelector('.label').textContent,
+                    wasDisabled: btn.disabled,
+                    wasClicked: btn.classList.contains('clicked')
+                });
+
                 animateBox(btn, ev);
-                btn.classList.add('clicked'); // Ensure highlight stays after animation
+
+                // Count it in the backend
                 const teamIdx = getSelectedTeam();
                 const pts = getPointsFromBox(btn);
                 if (pts > 0) {
                     await addPointsToTeam(teamIdx, pts);
+                    // Remove the box from the grid after counting
+                    btn.remove();
                 }
             });
 
@@ -50,15 +118,10 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function storeUndo(box) {
-        // Keep max 3 in stack
+    // Store up to 3 undo states
+    function storeUndo(undoObj) {
         if (undoStack.length >= 3) undoStack.shift();
-        undoStack.push({
-            box: box,
-            label: box.querySelector('.label').textContent,
-            wasClicked: box.classList.contains('clicked'),
-            lastClickedText: lastClicked.textContent
-        });
+        undoStack.push(undoObj);
     }
 
     function animateBox(box, ev){
@@ -108,22 +171,32 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Undo logic
+    // Undo logic: restore up to 3 removed boxes
     undoBtn.addEventListener('click', ()=>{
         if(undoStack.length > 0) {
             const undo = undoStack.pop();
-            const box = undo.box;
-            // Remove click effect if it was added
-            box.classList.remove('clicked');
-            box.style.background = '';
-            // Restore label if changed (optional: comment out if you do not wish to undo renames)
-            // box.querySelector('.label').textContent = undo.label;
-            // Restore lastClicked message
-            lastClicked.textContent = undo.lastClickedText || 'Last clicked: —';
+            if (undo.type === 'remove' && undo.box && undo.parent) {
+                // Restore the box to its previous position in the grid
+                if (undo.nextSibling && undo.nextSibling.parentNode === undo.parent) {
+                    undo.parent.insertBefore(undo.box, undo.nextSibling);
+                } else {
+                    undo.parent.appendChild(undo.box);
+                }
+                // Restore state
+                undo.box.classList.toggle('clicked', undo.wasClicked);
+                undo.box.disabled = undo.wasDisabled;
+                if (undo.wasDisabled) {
+                    undo.box.classList.add('disabled');
+                } else {
+                    undo.box.classList.remove('disabled');
+                }
+                // Optionally restore label if needed
+                // undo.box.querySelector('.label').textContent = undo.label;
+            }
         }
     });
 
-    // Reset disables undo
+    // Reset disables undo and removes highlight from all boxes
     resetBtn && resetBtn.addEventListener('click', ()=>{
         document.querySelectorAll('.box').forEach(b=>{
             b.classList.remove('clicked');
@@ -155,7 +228,7 @@ document.addEventListener('DOMContentLoaded', function() {
             undoBtn && undoBtn.click();
         }
         // Reset: Ctrl+R
-        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'x') {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
             e.preventDefault();
             resetBtn && resetBtn.click();
         }
@@ -184,6 +257,86 @@ document.addEventListener('DOMContentLoaded', function() {
         if (box.dataset.row === "7") {
             box.querySelector('.label').textContent = "700";
         }
+    });
+
+    // Add global toggle controls for hide/show remove and link buttons
+    const controlsDiv = document.querySelector('.controls');
+    const toggleRemoveBtn = document.createElement('button');
+    toggleRemoveBtn.textContent = 'Toggle Remove Buttons';
+    toggleRemoveBtn.type = 'button';
+    toggleRemoveBtn.style.fontSize = '1vw';
+    toggleRemoveBtn.style.padding = '0.3vw 1vw';
+    toggleRemoveBtn.style.borderRadius = '1vw';
+
+    const toggleLinkBtn = document.createElement('button');
+    toggleLinkBtn.textContent = 'Toggle Link Buttons';
+    toggleLinkBtn.type = 'button';
+    toggleLinkBtn.style.fontSize = '1vw';
+    toggleLinkBtn.style.padding = '0.3vw 1vw';
+    toggleLinkBtn.style.borderRadius = '1vw';
+
+    controlsDiv.appendChild(toggleRemoveBtn);
+    controlsDiv.appendChild(toggleLinkBtn);
+
+    let showRemove = true;
+    let showLink = true;
+
+    toggleRemoveBtn.addEventListener('click', () => {
+        showRemove = !showRemove;
+        document.querySelectorAll('.box .remove-btn').forEach(btn => {
+            btn.style.display = showRemove ? '' : 'none';
+        });
+    });
+
+    toggleLinkBtn.addEventListener('click', () => {
+        showLink = !showLink;
+        document.querySelectorAll('.box .link-btn').forEach(btn => {
+            btn.style.display = showLink ? '' : 'none';
+        });
+    });
+
+    // Add Miss and Success buttons to controls
+    const successBtn = document.createElement('button');
+    successBtn.textContent = 'Success';
+    successBtn.type = 'button';
+    successBtn.style.fontSize = '1.2vw';
+    successBtn.style.padding = '0.5vw 1.5vw';
+    successBtn.style.borderRadius = '1vw';
+
+    const missBtn = document.createElement('button');
+    missBtn.textContent = 'Miss';
+    missBtn.type = 'button';
+    missBtn.style.fontSize = '1.2vw';
+    missBtn.style.padding = '0.5vw 1.5vw';
+    missBtn.style.borderRadius = '1vw';
+
+    controlsDiv.appendChild(successBtn);
+    controlsDiv.appendChild(missBtn);
+
+    // Track the last selected box for scoring
+    let lastSelectedBox = null;
+    let lastSelectedPoints = 0;
+
+    // Success button: add points to selected team and remove the box
+    successBtn.addEventListener('click', async () => {
+        if (!lastSelectedBox || lastSelectedBox.disabled) return;
+        const teamIdx = getSelectedTeam();
+        const pts = lastSelectedPoints;
+        if (pts > 0) {
+            await addPointsToTeam(teamIdx, pts);
+            // Remove the box from the grid after counting
+            lastSelectedBox.remove();
+            lastSelectedBox = null;
+            lastSelectedPoints = 0;
+        }
+    });
+
+    // Miss button: just remove the box, do not add points
+    missBtn.addEventListener('click', () => {
+        if (!lastSelectedBox || lastSelectedBox.disabled) return;
+        lastSelectedBox.remove();
+        lastSelectedBox = null;
+        lastSelectedPoints = 0;
     });
 });
 
