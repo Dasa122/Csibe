@@ -22,6 +22,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if (r >= 1 && r <= 7) labelText = `${r}00`;
             btn.innerHTML = `<span class="label">${labelText}</span>`;
 
+            // Auto-link for first column
+            if (c === 1) {
+                btn.dataset.link = `emoji${r}00.html`;
+            }
+
             // Add disable button (top-right corner)
             const disableBtn = document.createElement('span');
             disableBtn.textContent = '✖';
@@ -91,16 +96,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     wasClicked: btn.classList.contains('clicked')
                 });
 
-                animateBox(btn, ev);
+             animateBox(btn, ev);
 
-                // Count it in the backend
-                const teamIdx = getSelectedTeam();
-                const pts = getPointsFromBox(btn);
-                if (pts > 0) {
-                    await addPointsToTeam(teamIdx, pts);
-                    // Remove the box from the grid after counting
-                    btn.remove();
-                }
+                // Remove the box from the grid after clicking (no backend)
+                btn.remove();
             });
 
             // right-click to rename individual box
@@ -154,21 +153,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const label = box.querySelector('.label').textContent;
         const pts = parseInt(label, 10);
         return isNaN(pts) ? 0 : pts;
-    }
-
-    // Update: when a box is clicked, add points to selected team via backend
-    async function addPointsToTeam(teamIndex, points) {
-        // Call backend API (assumes backend running at /api/add_points)
-        try {
-            await fetch('/api/add_points', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ team_index: teamIndex, points: points })
-            });
-        } catch (e) {
-            // Optionally show error
-            console.error('Failed to update backend:', e);
-        }
     }
 
     // Undo logic: restore up to 3 removed boxes
@@ -320,16 +304,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // Success button: add points to selected team and disable the box
     successBtn.addEventListener('click', async () => {
         if (!lastSelectedBox || lastSelectedBox.disabled) return;
-        const teamIdx = getSelectedTeam();
-        const pts = lastSelectedPoints;
-        if (pts > 0) {
-            await addPointsToTeam(teamIdx, pts);
-            lastSelectedBox.disabled = true;
-            lastSelectedBox.classList.add('disabled');
-            lastSelectedBox.classList.remove('clicked');
-            lastSelectedBox = null;
-            lastSelectedPoints = 0;
-        }
+        // No backend call, just disable the box
+        lastSelectedBox.disabled = true;
+        lastSelectedBox.classList.add('disabled');
+        lastSelectedBox.classList.remove('clicked');
+        lastSelectedBox = null;
+        lastSelectedPoints = 0;
     });
 
     // Miss button: just disable the box, do not add points
