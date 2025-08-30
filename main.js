@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', function() {
-    const rows = 7, cols = 5;
+    const rows = 7, cols = 7; // update to 7 columns if not already
     const grid = document.getElementById('grid');
     const lastClicked = document.getElementById('lastClicked');
     const resetBtn = document.getElementById('resetBtn');
@@ -22,12 +22,11 @@ document.addEventListener('DOMContentLoaded', function() {
             btn.type = 'button';
             btn.setAttribute('role','gridcell');
             btn.dataset.row = r; btn.dataset.col = c;
-            // Set label based on row
             let labelText = `${r},${c}`;
             if (r >= 1 && r <= 7) labelText = `${r}00`;
             btn.innerHTML = `<span class="label">${labelText}</span>`;
 
-            // Auto-link for first column
+            // Auto-link for columns
             if (c === 1) {
                 btn.dataset.link = `emoji${r}00.html`;
             }
@@ -43,6 +42,13 @@ document.addEventListener('DOMContentLoaded', function() {
             if (c === 5) {
                 btn.dataset.link = `music${r}00.html`;
             }
+            if (c === 6) {
+                btn.dataset.link = `music1${r}00.html`;
+            }
+            if (c === 7) {
+                btn.dataset.link = `music2${r}00.html`;
+            }
+
 
             // Add disable button (top-right corner)
             const disableBtn = document.createElement('span');
@@ -241,7 +247,7 @@ document.addEventListener('DOMContentLoaded', function() {
             box.querySelector('.label').textContent = "700";
         }
         // Set last column (col=5) label to "Zene 1", "Zene 2", ...
-        if (box.dataset.col === "5") {
+        if (box.dataset.col === "7") {
             box.querySelector('.label').textContent = "500";
         }
     });
@@ -277,12 +283,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Track the last selected box for scoring
     let lastSelectedBox = null;
-    let lastSelectedPoints = 0;
-
-    // Success button: add points to selected team and disable the box
-    successBtn.addEventListener('click', async () => {
-        if (!lastSelectedBox || lastSelectedBox.disabled) return;
-        // No backend call, just disable the box
         lastSelectedBox.disabled = true;
         lastSelectedBox.classList.add('disabled');
         lastSelectedBox.classList.remove('clicked');
@@ -292,7 +292,7 @@ document.addEventListener('DOMContentLoaded', function() {
         lastSelectedBox = null;
         lastSelectedPoints = 0;
 
-    });
+    
         lastSelectedBox.classList.remove('clicked');
         lastSelectedBox.disabled = true;
         lastSelectedBox.classList.add('disabled');
