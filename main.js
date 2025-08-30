@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     const rows = 7, cols = 7; // update to 7 columns if not already
     const grid = document.getElementById('grid');
     const lastClicked = document.getElementById('lastClicked');
@@ -15,12 +15,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const undoStack = [];
 
     // Create the grid
-    for(let r=1; r<=rows; r++){
-        for(let c=1; c<=cols; c++){
+    for (let r = 1; r <= rows; r++) {
+        for (let c = 1; c <= cols; c++) {
             const btn = document.createElement('button');
             btn.className = 'box';
             btn.type = 'button';
-            btn.setAttribute('role','gridcell');
+            btn.setAttribute('role', 'gridcell');
             btn.dataset.row = r; btn.dataset.col = c;
             let labelText = `${r},${c}`;
             if (r >= 1 && r <= 7) labelText = `${r}00`;
@@ -95,7 +95,7 @@ document.addEventListener('DOMContentLoaded', function() {
             btn.appendChild(linkBtn);
 
             // Left click: highlight/select
-            btn.addEventListener('click', (ev)=>{
+            btn.addEventListener('click', (ev) => {
                 if (btn.disabled) return;
                 document.querySelectorAll('.box').forEach(b => b.classList.remove('clicked'));
                 btn.classList.add('clicked');
@@ -104,7 +104,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
 
             // Double left click: open link if present
-            btn.addEventListener('dblclick', (ev)=>{
+            btn.addEventListener('dblclick', (ev) => {
                 if (btn.disabled) return;
                 if (btn.dataset.link) {
                     window.open(btn.dataset.link, '_blank');
@@ -112,7 +112,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
 
             // Right-click: disable the box and store undo state (undo will re-enable)
-            btn.addEventListener('contextmenu', (ev)=>{
+            btn.addEventListener('contextmenu', (ev) => {
                 ev.preventDefault();
                 if (btn.disabled) return;
                 storeUndo({
@@ -138,24 +138,24 @@ document.addEventListener('DOMContentLoaded', function() {
         undoStack.push(undoObj);
     }
 
-    function animateBox(box, ev){
+    function animateBox(box, ev) {
         lastClicked.textContent = `Last clicked: ${box.querySelector('.label').textContent}`;
         // box.classList.remove('clicked'); // Remove this line, handled in click event
         void box.offsetWidth;
         // box.classList.add('clicked'); // Remove this line, now handled in click event after animation
         const rect = box.getBoundingClientRect();
-        const x = (ev && typeof ev.clientX === "number") ? (ev.clientX - rect.left) : (rect.width/2);
-        const y = (ev && typeof ev.clientY === "number") ? (ev.clientY - rect.top) : (rect.height/2);
+        const x = (ev && typeof ev.clientX === "number") ? (ev.clientX - rect.left) : (rect.width / 2);
+        const y = (ev && typeof ev.clientY === "number") ? (ev.clientY - rect.top) : (rect.height / 2);
         const ripple = document.createElement('span');
         ripple.className = 'ripple';
         const size = Math.max(rect.width, rect.height) * 2;
         ripple.style.width = ripple.style.height = size + 'px';
-        ripple.style.left = (x - size/2) + 'px';
-        ripple.style.top = (y - size/2) + 'px';
+        ripple.style.left = (x - size / 2) + 'px';
+        ripple.style.top = (y - size / 2) + 'px';
         box.appendChild(ripple);
         box.style.background = 'linear-gradient(180deg, rgba(2,132,199,0.14), rgba(2,132,199,0.06))';
-        setTimeout(()=>{ box.style.background = ''; }, 420);
-        setTimeout(()=>{ ripple.remove(); }, 800);
+        setTimeout(() => { box.style.background = ''; }, 420);
+        setTimeout(() => { ripple.remove(); }, 800);
     }
 
     // Helper: get selected team index
@@ -171,8 +171,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Undo logic: restore up to 3 disabled boxes (right-click disables, undo re-enables)
-    undoBtn.addEventListener('click', ()=>{
-        if(undoStack.length > 0) {
+    undoBtn.addEventListener('click', () => {
+        if (undoStack.length > 0) {
             const undo = undoStack.pop();
             if (undo.type === 'disable' && undo.box) {
                 undo.box.disabled = false;
@@ -186,8 +186,8 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Reset disables undo and removes highlight from all boxes
-    resetBtn && resetBtn.addEventListener('click', ()=>{
-        document.querySelectorAll('.box').forEach(b=>{
+    resetBtn && resetBtn.addEventListener('click', () => {
+        document.querySelectorAll('.box').forEach(b => {
             b.classList.remove('clicked');
             b.style.background = '';
             b.querySelector('.label').textContent = `${b.dataset.row}00`;
@@ -197,20 +197,20 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Keyboard support
-    grid.addEventListener('keydown', (e)=>{
-        if(e.key === 'Enter' || e.key === ' '){
+    grid.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
             const target = document.activeElement;
-            if(target && target.classList.contains('box')){
+            if (target && target.classList.contains('box')) {
                 e.preventDefault();
                 storeUndo(target);
-                const ev = { clientX: target.getBoundingClientRect().left + target.offsetWidth/2, clientY: target.getBoundingClientRect().top + target.offsetHeight/2 };
+                const ev = { clientX: target.getBoundingClientRect().left + target.offsetWidth / 2, clientY: target.getBoundingClientRect().top + target.offsetHeight / 2 };
                 animateBox(target, ev);
             }
         }
     });
 
     // Keyboard shortcuts for main actions
-    document.addEventListener('keydown', function(e) {
+    document.addEventListener('keydown', function (e) {
         // Undo: Ctrl+Z
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
             e.preventDefault();
@@ -283,30 +283,30 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Track the last selected box for scoring
     let lastSelectedBox = null;
-        lastSelectedBox.disabled = true;
-        lastSelectedBox.classList.add('disabled');
-        lastSelectedBox.classList.remove('clicked');
-        lastSelectedBox = null;
-        lastSelectedPoints = 0;
-    }); 
-        lastSelectedBox = null;
-        lastSelectedPoints = 0;
+    lastSelectedBox.disabled = true;
+    lastSelectedBox.classList.add('disabled');
+    lastSelectedBox.classList.remove('clicked');
+    lastSelectedBox = null;
+    lastSelectedPoints = 0;
+});
+lastSelectedBox = null;
+lastSelectedPoints = 0;
 
-    
-        lastSelectedBox.classList.remove('clicked');
-        lastSelectedBox.disabled = true;
-        lastSelectedBox.classList.add('disabled');
-        lastSelectedBox.classList.remove('clicked');
-        lastSelectedBox = null;
-        lastSelectedPoints = 0;
- 
-        lastSelectedBox.classList.remove('clicked');
-        lastSelectedBox.classList.remove('clicked');
-        lastSelectedBox.disabled = true;
-        lastSelectedBox.classList.add('disabled');
-        lastSelectedBox.classList.remove('clicked');
-        lastSelectedBox = null;
-        lastSelectedPoints = 0;
- 
-        lastSelectedBox.classList.remove('clicked');
+
+lastSelectedBox.classList.remove('clicked');
+lastSelectedBox.disabled = true;
+lastSelectedBox.classList.add('disabled');
+lastSelectedBox.classList.remove('clicked');
+lastSelectedBox = null;
+lastSelectedPoints = 0;
+
+lastSelectedBox.classList.remove('clicked');
+lastSelectedBox.classList.remove('clicked');
+lastSelectedBox.disabled = true;
+lastSelectedBox.classList.add('disabled');
+lastSelectedBox.classList.remove('clicked');
+lastSelectedBox = null;
+lastSelectedPoints = 0;
+
+lastSelectedBox.classList.remove('clicked');
 

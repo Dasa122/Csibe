@@ -66,8 +66,35 @@
     <button onclick="window.close()" id="closeTabBtn">Close Tab</button>
     <button id="answerBtn" onclick="showAnswer()">Show Answer</button>
     <div id="answerBox">
-        <h1></h1>
+        <h1>Mongol torokének Techno</h1>
         <!-- You can replace "The Answer" with your actual answer -->
+    </div>
+    <!-- WAV audio embed at bottom center with easy (left) and hard (right) -->
+    <div style="
+        position: fixed;
+        left: 50%;
+        bottom: 1vw;
+        transform: translateX(-50%);
+        z-index: 30;
+        display: flex;
+        gap: 3vw;
+        border-radius: 1vw;
+        padding: 0.5vw 2vw;
+        box-shadow: 0 0 1vw rgba(0,0,0,0.1);
+        align-items: center;
+    ">
+        <div style="display: flex; flex-direction: column; align-items: center;">
+            <audio controls>
+                <source src="Music/Zsákbamacska/600/Könnyű/Mongol torokének Techno.wav" type="audio/wav">
+            </audio>
+            <span style="font-size:1vw; color:#388e3c; margin-top:0.3vw;">Easy</span>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center;">
+            <audio controls>
+                <source src="Music/Zsákbamacska/600/Nehéz/Mongol torokének Techno.wav" type="audio/wav">
+            </audio>
+            <span style="font-size:1vw; color:#d32f2f; margin-top:0.3vw;">Hard</span>
+        </div>
     </div>
     <script>
         function showAnswer() {
