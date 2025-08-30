@@ -31,7 +31,6 @@ document.addEventListener('DOMContentLoaded', function() {
             if (c === 1) {
                 btn.dataset.link = `emoji${r}00.html`;
             }
-            // Auto-link for second column
             if (c === 2) {
                 btn.dataset.link = `movie${r}00.html`;
             }
@@ -241,6 +240,10 @@ document.addEventListener('DOMContentLoaded', function() {
         if (box.dataset.row === "7") {
             box.querySelector('.label').textContent = "700";
         }
+        // Set last column (col=5) label to "Zene 1", "Zene 2", ...
+        if (box.dataset.col === "5") {
+            box.querySelector('.label').textContent = "500";
+        }
     });
 
     // Add global toggle controls for hide/show remove and link buttons
@@ -291,7 +294,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     });
         lastSelectedBox.classList.remove('clicked');
-        // No backend call, just disable the box
         lastSelectedBox.disabled = true;
         lastSelectedBox.classList.add('disabled');
         lastSelectedBox.classList.remove('clicked');
@@ -300,7 +302,6 @@ document.addEventListener('DOMContentLoaded', function() {
  
         lastSelectedBox.classList.remove('clicked');
         lastSelectedBox.classList.remove('clicked');
-        // No backend call, just disable the box
         lastSelectedBox.disabled = true;
         lastSelectedBox.classList.add('disabled');
         lastSelectedBox.classList.remove('clicked');
