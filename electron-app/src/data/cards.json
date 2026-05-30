@@ -10,7 +10,7 @@
   ],
   "points": [100, 200, 300, 400, 500, 600, 700],
   "cards": [
-    { "row": 0, "col": 0, "label": "100", "image": "emoji/dog.png", "answer": "Kutyából nem lesz szalonna.", "enabled": true },
+    { "row": 0, "col": 0, "label": "100", "easyImage": "emoji/dog.png", "hardImage": "", "answer": "Kutyából nem lesz szalonna.", "easyAudio": "", "hardAudio": "", "enabled": true },
     { "row": 0, "col": 1, "label": "100", "image": "", "answer": "", "enabled": true },
     { "row": 0, "col": 2, "label": "100", "image": "", "answer": "", "enabled": true },
     { "row": 0, "col": 3, "label": "100", "image": "", "answer": "", "enabled": true },

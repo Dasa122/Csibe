@@ -57,6 +57,9 @@ export default function App() {
   const [lastClicked, setLastClicked] = useState('—');
   const [activeScreen, setActiveScreen] = useState(null);
   const [subScreen, setSubScreen] = useState(null);
+  const [showMedia, setShowMedia] = useState(null); // { card, mode: 'easy'|'hard', image, audio, categoryName }
+  const [audioPlaying, setAudioPlaying] = useState(false);
+  const audioRef = useRef(null);
   
   // Initialize screen defaults from Electron on first load
   useEffect(() => {
@@ -109,6 +112,24 @@ export default function App() {
       frozenCard: frozenCardRef.current ? { row: frozenCardRef.current.row, col: frozenCardRef.current.col, label: frozenCardRef.current.label } : null,
     });
   }, [cardsData.cards, cardsData.categories, cardsData.points, log]);
+
+  const stopAudio = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      setAudioPlaying(false);
+    }
+  }, []);
+
+  const toggleMainAudio = useCallback(() => {
+    if (!showMedia?.audio || !audioRef.current) return;
+    if (audioPlaying) {
+      stopAudio();
+    } else {
+      audioRef.current.play().catch(() => {});
+      setAudioPlaying(true);
+    }
+  }, [showMedia?.audio, audioPlaying, stopAudio]);
 
   const pushUndo = useCallback((action) => {
     setUndoStack(prev => [...prev.slice(-19), action]);
@@ -206,9 +227,18 @@ export default function App() {
           log('ipc:select-card', { row: card.row, col: card.col, label: card.label, categoryName: catName });
           break;
         }
-        case 'show-answer':
+        case 'show-media': {
+          const { card, mode, image, audio, categoryName } = data;
+          if (!card) return;
+          stopAudio();
+          setShowMedia({ card, mode, image, audio, categoryName });
+          log('ipc:show-media', { mode, label: card.label, image, audio });
           break;
-        case 'hide-answer':
+        }
+        case 'hide-media':
+          stopAudio();
+          setShowMedia(null);
+          log('ipc:hide-media');
           break;
         case 'disable-card': {
           const c = data.card;
@@ -573,6 +603,56 @@ export default function App() {
           onSave={handleSaveCategories}
           onCancel={() => setShowCategoryEditor(false)}
         />
+      )}
+
+      {/* ---- Fullscreen media overlay (triggered by dev screen Show buttons) ---- */}
+      {showMedia && (
+        <div className="subpage-overlay" onClick={() => { stopAudio(); setShowMedia(null); }}>
+          <div className="subpage-content" onClick={e => e.stopPropagation()}>
+            <div className={`ds-show-badge ${showMedia.mode === 'hard' ? 'ds-show-badge--hard' : 'ds-show-badge--easy'}`} style={{ position: 'static', fontSize: '2vmin', padding: '0.6vmin 1.6vmin' }}>
+              {showMedia.mode === 'hard' ? '🔴 HARD (2×)' : '🟢 EASY (1×)'}
+            </div>
+
+            {showMedia.image ? (
+              <img
+                src={showMedia.image}
+                alt="Card media"
+                className="subpage-image"
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
+            ) : (
+              <div className="subpage-no-image">
+                <div className="subpage-placeholder-icon">🖼️</div>
+                <p>No image for {showMedia.mode} mode</p>
+                <p className="subpage-meta">{showMedia.card.label} pont — {showMedia.categoryName}</p>
+              </div>
+            )}
+
+            {showMedia.audio && (
+              <div className="subpage-actions">
+                <button
+                  className={`btn btn--large ${audioPlaying ? 'btn--danger' : 'btn--primary'}`}
+                  onClick={toggleMainAudio}
+                >
+                  {audioPlaying ? '⏹ Stop Audio' : '🎵 Play Audio'}
+                </button>
+              </div>
+            )}
+
+            <button className="btn btn--secondary btn--large" onClick={() => { stopAudio(); setShowMedia(null); }}>
+              ✕ Close
+            </button>
+
+            {showMedia.audio && (
+              <audio
+                ref={audioRef}
+                src={showMedia.audio}
+                onEnded={() => setAudioPlaying(false)}
+                style={{ display: 'none' }}
+              />
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

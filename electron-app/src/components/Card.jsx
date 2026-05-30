@@ -37,7 +37,7 @@ const Card = memo(function Card({
     'card',
     !card.enabled && 'card--disabled',
     isSelected && 'card--selected',
-    card.image && 'card--has-image',
+    card.easyImage && 'card--has-image',
     setupMode && 'card--setup',
   ].filter(Boolean).join(' ');
 

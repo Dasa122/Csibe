@@ -24,6 +24,7 @@ export default function DevScreen() {
   const [audioPlaying, setAudioPlaying] = useState(false);
   const [editingCard, setEditingCard] = useState(null);
   const [previewFallback, setPreviewFallback] = useState(PLACEHOLDER_IMAGE);
+  const [showMode, setShowMode] = useState(null); // 'easy' | 'hard' | null
   const audioRef = useRef(null);
 
   const stopAudioRef = useCallback(() => {
@@ -82,15 +83,18 @@ export default function DevScreen() {
   }, [selected, stopAudioRef]);
 
   useEffect(() => {
-    setPreviewFallback(selected?.image || PLACEHOLDER_IMAGE);
-  }, [selected?.image]);
+    const img = selected?.easyImage || selected?.image || PLACEHOLDER_IMAGE;
+    setPreviewFallback(img);
+    setShowMode(null);
+  }, [selected?.easyImage, selected?.image]);
 
   const handleSelectCard = useCallback((card) => {
     log('card:select', { row: card.row, col: card.col, label: card.label });
     setSelected(card);
     setShowAnswer(false);
     stopAudioRef();
-    setPreviewFallback(card.image || PLACEHOLDER_IMAGE);
+    setPreviewFallback(card.easyImage || card.image || PLACEHOLDER_IMAGE);
+    setShowMode(null);
 
     if (window.electronAPI) {
       window.electronAPI.selectOnMain('select-card', {
@@ -125,31 +129,83 @@ export default function DevScreen() {
 
   const toggleAudio = useCallback((e) => {
     e.stopPropagation();
-    if (!selected?.audio || !audioRef.current) return;
+    const audioPath = showMode === 'hard' ? selected?.hardAudio : selected?.easyAudio || selected?.audio;
+    if (!audioPath || !audioRef.current) return;
     if (audioPlaying) {
       stopAudioRef();
     } else {
       audioRef.current.play().catch(() => {});
       setAudioPlaying(true);
     }
-  }, [selected?.audio, audioPlaying, stopAudioRef]);
+  }, [selected, showMode, audioPlaying, stopAudioRef]);
 
   const handleAudioEnded = useCallback(() => setAudioPlaying(false), []);
+
+  const handleHideMedia = useCallback(() => {
+    setShowMode(null);
+    if (window.electronAPI) {
+      window.electronAPI.selectOnMain('hide-media', {});
+    }
+  }, []);
+
+  const handleShowEasy = useCallback(() => {
+    if (!selected) return;
+    if (showMode === 'easy') {
+      handleHideMedia();
+      return;
+    }
+    stopAudioRef();
+    const mode = 'easy';
+    const image = selected.easyImage || selected.image || '';
+    const audio = selected.easyAudio || selected.audio || '';
+    setShowMode(mode);
+    setPreviewFallback(image || PLACEHOLDER_IMAGE);
+    setShowAnswer(false);
+    if (window.electronAPI) {
+      window.electronAPI.selectOnMain('show-media', {
+        card: selected,
+        mode,
+        image,
+        audio,
+        categoryName: categories[selected.col]?.name || '',
+      });
+    }
+    log('action:show-easy', { image, audio });
+  }, [selected, showMode, stopAudioRef, categories]);
+
+  const handleShowHard = useCallback(() => {
+    if (!selected) return;
+    if (showMode === 'hard') {
+      handleHideMedia();
+      return;
+    }
+    stopAudioRef();
+    const mode = 'hard';
+    const image = selected.hardImage || '';
+    const audio = selected.hardAudio || '';
+    setShowMode(mode);
+    setPreviewFallback(image || PLACEHOLDER_IMAGE);
+    setShowAnswer(false);
+    if (window.electronAPI) {
+      window.electronAPI.selectOnMain('show-media', {
+        card: selected,
+        mode,
+        image,
+        audio,
+        categoryName: categories[selected.col]?.name || '',
+      });
+    }
+    log('action:show-hard', { image, audio });
+  }, [selected, showMode, stopAudioRef, categories]);
 
   const handleRevealAnswer = useCallback(() => {
     log('action:reveal-answer', selected ? { row: selected.row, col: selected.col, label: selected.label } : null);
     setShowAnswer(true);
-    if (window.electronAPI && selected) {
-      window.electronAPI.selectOnMain('show-answer', { card: selected });
-    }
   }, [selected]);
 
   const handleHideAnswer = useCallback(() => {
     log('action:hide-answer', selected ? { row: selected.row, col: selected.col, label: selected.label } : null);
     setShowAnswer(false);
-    if (window.electronAPI && selected) {
-      window.electronAPI.selectOnMain('hide-answer', { card: selected });
-    }
   }, [selected]);
 
   const handleMarkDone = useCallback(() => {
@@ -238,10 +294,10 @@ export default function DevScreen() {
                   return (
                     <button
                       key={ci}
-                      className={`ds-mini-cell ${!card.enabled ? 'ds-mini-cell--disabled' : ''} ${sel ? 'ds-mini-cell--selected' : ''} ${card.image ? 'ds-mini-cell--has-image' : ''} ${card.audio ? 'ds-mini-cell--has-audio' : ''}`}
+                      className={`ds-mini-cell ${!card.enabled ? 'ds-mini-cell--disabled' : ''} ${sel ? 'ds-mini-cell--selected' : ''} ${(card.easyImage || card.image) ? 'ds-mini-cell--has-image' : ''} ${(card.easyAudio || card.audio || card.hardAudio) ? 'ds-mini-cell--has-audio' : ''}`}
                       onClick={() => card.enabled && handleSelectCard(card)}
                       disabled={!card.enabled}
-                      title={`${card.label} — ${cat.name}${card.image ? ' 🖼' : ''}${card.audio ? ' 🎵' : ''}`}
+                      title={`${card.label} — ${cat.name}${(card.easyImage || card.image) ? ' 🖼' : ''}${card.hardImage ? ' 🖼🔥' : ''}${(card.easyAudio || card.audio) ? ' 🎵' : ''}${card.hardAudio ? ' 🎵🔥' : ''}`}
                     >
                       <span className="ds-mini-label">{card.label}</span>
                     </button>
@@ -258,28 +314,27 @@ export default function DevScreen() {
               <div className="ds-detail-header">
                 <div>
                   <h2>{categories[selected.col]?.icon} {categories[selected.col]?.name}</h2>
-                  <p>
-                    {selected.label} pont
-                    {selected.difficulty === 'hard' && (
-                      <span className="ds-point-multiplier"> ×2</span>
-                    )}
-                  </p>
+                  <p>{selected.label} pont</p>
                 </div>
                 <div className="ds-detail-chip-row">
                   <span className="ds-detail-chip">{selected.enabled ? 'Live' : 'Disabled'}</span>
-                  <span className={`ds-detail-chip ${selected.difficulty === 'hard' ? 'ds-detail-chip--danger' : 'ds-detail-chip--success'}`}>
-                    {selected.difficulty === 'hard' ? '🔴 Hard' : '🟢 Easy'}
-                  </span>
-                  {selected.audio && <span className="ds-detail-chip ds-detail-chip--accent">Audio</span>}
-                  {selected.image && <span className="ds-detail-chip ds-detail-chip--accent">Image</span>}
+                  {(selected.easyAudio || selected.audio) && <span className="ds-detail-chip ds-detail-chip--accent">🎵E</span>}
+                  {selected.hardAudio && <span className="ds-detail-chip ds-detail-chip--danger">🎵H</span>}
+                  {(selected.easyImage || selected.image) && <span className="ds-detail-chip ds-detail-chip--accent">🖼E</span>}
+                  {selected.hardImage && <span className="ds-detail-chip ds-detail-chip--danger">🖼H</span>}
                 </div>
               </div>
 
               <div className="ds-detail-image-area">
+                {showMode && (
+                  <div className={`ds-show-badge ${showMode === 'hard' ? 'ds-show-badge--hard' : 'ds-show-badge--easy'}`}>
+                    {showMode === 'hard' ? '🔴 HARD' : '🟢 EASY'}
+                  </div>
+                )}
                 <img
-                  src={selected.image || previewFallback}
-                  alt={selected.image ? 'Preview' : 'Placeholder preview'}
-                  className={`ds-detail-image ${!selected.image ? 'ds-detail-image--placeholder' : ''}`}
+                  src={previewFallback}
+                  alt="Preview"
+                  className={`ds-detail-image ${previewFallback === PLACEHOLDER_IMAGE && !(selected?.easyImage || selected?.image || selected?.hardImage) ? 'ds-detail-image--placeholder' : ''}`}
                   onError={() => setPreviewFallback(PLACEHOLDER_IMAGE)}
                 />
               </div>
@@ -303,7 +358,19 @@ export default function DevScreen() {
                 <button className="btn btn--sm btn--secondary" onClick={handleOpenEditor}>
                   ✏️ Edit
                 </button>
-                {selected.audio && (
+                <button
+                  className={`btn btn--sm ${showMode === 'easy' ? 'btn--primary' : 'btn--secondary'}`}
+                  onClick={handleShowEasy}
+                >
+                  🟢 Easy Show
+                </button>
+                <button
+                  className={`btn btn--sm ${showMode === 'hard' ? 'btn--danger' : 'btn--secondary'}`}
+                  onClick={handleShowHard}
+                >
+                  🔴 Hard Show
+                </button>
+                {((showMode === 'easy' && (selected.easyAudio || selected.audio)) || (showMode === 'hard' && selected.hardAudio)) && (
                   <button
                     className={`btn btn--sm ${audioPlaying ? 'btn--danger' : 'btn--primary'}`}
                     onClick={toggleAudio}
@@ -325,7 +392,7 @@ export default function DevScreen() {
                 </button>
               </div>
 
-              <audio ref={audioRef} src={selected.audio || ''} onEnded={handleAudioEnded} style={{ display: 'none' }} />
+              <audio ref={audioRef} src={showMode === 'hard' ? (selected.hardAudio || '') : (selected.easyAudio || selected.audio || '')} onEnded={handleAudioEnded} style={{ display: 'none' }} />
             </>
           ) : (
             <div className="ds-detail-empty">

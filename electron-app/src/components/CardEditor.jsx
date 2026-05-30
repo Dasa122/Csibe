@@ -3,47 +3,39 @@ import { PLACEHOLDER_IMAGE } from './imagePlaceholder';
 
 export default function CardEditor({ card, categories, onSave, onCancel }) {
   const [label, setLabel] = useState(card.label);
-  const [image, setImage] = useState(card.image || '');
+  const [easyImage, setEasyImage] = useState(card.easyImage || card.image || '');
+  const [hardImage, setHardImage] = useState(card.hardImage || '');
   const [answer, setAnswer] = useState(card.answer || '');
-  const [audio, setAudio] = useState(card.audio || '');
-  const [difficulty, setDifficulty] = useState(card.difficulty || 'easy');
+  const [easyAudio, setEasyAudio] = useState(card.easyAudio || card.audio || '');
+  const [hardAudio, setHardAudio] = useState(card.hardAudio || '');
   const [audioPlaying, setAudioPlaying] = useState(false);
-  const [previewSrc, setPreviewSrc] = useState(card.image || PLACEHOLDER_IMAGE);
+  const [previewSrc, setPreviewSrc] = useState(card.easyImage || card.image || PLACEHOLDER_IMAGE);
+  const [audioSrc, setAudioSrc] = useState(card.easyAudio || card.audio || '');
   const audioRef = useRef(null);
-
-  const handleImageChange = (value) => {
-    setImage(value);
-    setPreviewSrc(value || PLACEHOLDER_IMAGE);
-  };
-
-  const handleImageError = useCallback(() => {
-    setPreviewSrc(PLACEHOLDER_IMAGE);
-  }, []);
 
   const handleSave = () => {
     onSave({
       ...card,
       label,
-      image,
+      easyImage,
+      hardImage,
       answer,
-      audio: audio || '',
-      difficulty,
+      easyAudio: easyAudio || '',
+      hardAudio: hardAudio || '',
     });
   };
 
   const handlePlayAudio = useCallback(() => {
-    if (!audio) return;
-    if (audioRef.current) {
-      if (audioPlaying) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
-        setAudioPlaying(false);
-      } else {
-        audioRef.current.play().catch(() => {});
-        setAudioPlaying(true);
-      }
+    if (!audioSrc || !audioRef.current) return;
+    if (audioPlaying) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      setAudioPlaying(false);
+    } else {
+      audioRef.current.play().catch(() => {});
+      setAudioPlaying(true);
     }
-  }, [audio, audioPlaying]);
+  }, [audioSrc, audioPlaying]);
 
   const handleAudioEnded = useCallback(() => {
     setAudioPlaying(false);
@@ -76,12 +68,22 @@ export default function CardEditor({ card, categories, onSave, onCancel }) {
           </label>
 
           <label className="editor-field">
-            <span>Image path:</span>
+            <span>🟢 Easy image path:</span>
             <input
               type="text"
-              value={image}
-              onChange={e => handleImageChange(e.target.value)}
-              placeholder="Paste an image URL or local path"
+              value={easyImage}
+              onChange={e => { setEasyImage(e.target.value); setPreviewSrc(e.target.value || PLACEHOLDER_IMAGE); }}
+              placeholder="Easy image URL or path"
+            />
+          </label>
+
+          <label className="editor-field">
+            <span>🔴 Hard image path:</span>
+            <input
+              type="text"
+              value={hardImage}
+              onChange={e => setHardImage(e.target.value)}
+              placeholder="Hard image URL or path"
             />
           </label>
 
@@ -96,54 +98,46 @@ export default function CardEditor({ card, categories, onSave, onCancel }) {
           </label>
 
           <label className="editor-field">
-            <span>Audio path (music snippet):</span>
+            <span>🟢 Easy audio path:</span>
             <div className="editor-audio-row">
               <input
                 type="text"
-                value={audio}
-                onChange={e => setAudio(e.target.value)}
-                placeholder="e.g. music/song.mp3"
+                value={easyAudio}
+                onChange={e => { setEasyAudio(e.target.value); setAudioSrc(e.target.value); }}
+                placeholder="Easy music/sound path"
               />
-              {audio && (
-                <button
-                  type="button"
-                  className={`btn btn--sm ${audioPlaying ? 'btn--danger' : 'btn--primary'}`}
-                  onClick={handlePlayAudio}
-                >
-                  {audioPlaying ? '⏹ Stop' : '▶ Play'}
-                </button>
-              )}
             </div>
-            {audio && <audio ref={audioRef} src={audio} onEnded={handleAudioEnded} style={{ display: 'none' }} />}
           </label>
 
           <label className="editor-field">
-            <span>Difficulty:</span>
-            <div className="editor-difficulty-row">
-              <button
-                type="button"
-                className={`btn btn--sm ${difficulty === 'easy' ? 'btn--primary' : 'btn--secondary'}`}
-                onClick={() => setDifficulty('easy')}
-              >
-                🟢 Easy (1×)
-              </button>
-              <button
-                type="button"
-                className={`btn btn--sm ${difficulty === 'hard' ? 'btn--danger' : 'btn--secondary'}`}
-                onClick={() => setDifficulty('hard')}
-              >
-                🔴 Hard (2×)
-              </button>
+            <span>🔴 Hard audio path:</span>
+            <div className="editor-audio-row">
+              <input
+                type="text"
+                value={hardAudio}
+                onChange={e => setHardAudio(e.target.value)}
+                placeholder="Hard music/sound path"
+              />
+              {(easyAudio || hardAudio) && (
+                <button
+                  type="button"
+                  className={`btn btn--sm ${audioPlaying ? 'btn--danger' : 'btn--primary'}`}
+                  onClick={() => { setAudioSrc(hardAudio || easyAudio); handlePlayAudio(); }}
+                >
+                  {audioPlaying ? '⏹ Stop' : '▶ Test'}
+                </button>
+              )}
             </div>
+            {(easyAudio || hardAudio) && <audio ref={audioRef} src={audioSrc} onEnded={handleAudioEnded} style={{ display: 'none' }} />}
           </label>
 
           <div className="editor-preview">
             <span>Image preview:</span>
             <img
               src={previewSrc}
-              alt={image ? 'Preview' : 'Placeholder preview'}
-              className={!image ? 'editor-preview__placeholder' : ''}
-              onError={handleImageError}
+              alt={easyImage ? 'Preview' : 'Placeholder preview'}
+              className={!easyImage ? 'editor-preview__placeholder' : ''}
+              onError={() => setPreviewSrc(PLACEHOLDER_IMAGE)}
             />
           </div>
         </div>

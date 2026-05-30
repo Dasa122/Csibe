@@ -837,6 +837,32 @@ body::after {
   background: rgba(255,255,255,0.03);
 }
 
+.ds-show-badge {
+  position: absolute;
+  top: 0.8vmin;
+  left: 0.8vmin;
+  z-index: 2;
+  padding: 0.35vmin 0.9vmin;
+  border-radius: 999px;
+  font-size: 1vmin;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.ds-show-badge--easy {
+  color: var(--success);
+  background: rgba(74, 222, 128, 0.2);
+  border: 1px solid rgba(74, 222, 128, 0.35);
+}
+
+.ds-show-badge--hard {
+  color: var(--danger);
+  background: rgba(248, 113, 113, 0.2);
+  border: 1px solid rgba(248, 113, 113, 0.35);
+}
+
 .ds-detail-no-image,
 .ds-detail-answer-hidden,
 .ds-detail-empty {
