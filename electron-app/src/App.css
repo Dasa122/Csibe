@@ -685,6 +685,11 @@ body::after {
   color: var(--text-dim);
 }
 
+.ds-point-multiplier {
+  color: var(--danger);
+  font-weight: 900;
+}
+
 .ds-mini-grid {
   display: flex;
   flex-direction: column;
@@ -794,6 +799,18 @@ body::after {
   color: var(--accent);
   background: rgba(56, 189, 248, 0.12);
   border-color: rgba(56, 189, 248, 0.2);
+}
+
+.ds-detail-chip--success {
+  color: var(--success);
+  background: rgba(74, 222, 128, 0.12);
+  border-color: rgba(74, 222, 128, 0.2);
+}
+
+.ds-detail-chip--danger {
+  color: var(--danger);
+  background: rgba(248, 113, 113, 0.12);
+  border-color: rgba(248, 113, 113, 0.2);
 }
 
 .ds-detail-image-area {
@@ -976,6 +993,11 @@ body::after {
 
 .editor-audio-row input {
   flex: 1;
+}
+
+/* Difficulty row in editor */
+.editor-difficulty-row {
+  display: flex; gap: 0.6vmin;
 }
 
 /* ============================================================

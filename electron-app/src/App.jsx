@@ -131,11 +131,11 @@ export default function App() {
 
     if (action.type === 'disable') {
       log('undo:disable', { row: action.row, col: action.col });
-      setCardsData(cd => cd.map(c =>
+      setCardsData(cd => ({ ...cd, cards: cd.cards.map(c =>
         c.row === action.row && c.col === action.col
           ? { ...c, enabled: true }
           : c
-      ));
+      ) }));
       setFrozenCard(prev => prev?.row === action.row && prev?.col === action.col ? null : prev);
       setRoundComplete(false);
     } else if (action.type === 'select') {
@@ -145,9 +145,9 @@ export default function App() {
       const previous = action.previous;
       if (!previous) return;
       log('undo:edit', { row: previous.row, col: previous.col, label: previous.label });
-      setCardsData(cd => cd.map(c =>
+      setCardsData(cd => ({ ...cd, cards: cd.cards.map(c =>
         c.row === previous.row && c.col === previous.col ? previous : c
-      ));
+      ) }));
       setSelectedCard(prev => prev?.row === previous.row && prev?.col === previous.col ? previous : prev);
     }
   }, [log]);
@@ -215,19 +215,28 @@ export default function App() {
           if (!c) return;
           pushUndo({ type: 'disable', row: c.row, col: c.col });
           log('ipc:disable-card', { row: c.row, col: c.col, label: c.label });
-          setCardsData(prev => prev.map(cd =>
+
+          // Compute the next state synchronously – cardsData is fresh because
+          // this IPC listener is re-registered whenever cardsData changes.
+          const nextCards = cardsData.cards.map(cd =>
             cd.row === c.row && cd.col === c.col ? { ...cd, enabled: false } : cd
-          ));
-          setSelectedCard(prev => prev?.row === c.row && prev?.col === c.col ? { ...prev, enabled: false } : prev);
-          const remainingEnabled = cardsData.cards.some(cd =>
+          );
+          const stillAlive = nextCards.some(cd =>
             !(cd.row === c.row && cd.col === c.col) && cd.enabled
           );
-          if (remainingEnabled) {
+
+          setCardsData(prev => ({ ...prev, cards: nextCards }));
+          setSelectedCard(prev =>
+            prev?.row === c.row && prev?.col === c.col
+              ? { ...prev, enabled: false }
+              : prev
+          );
+
+          if (stillAlive) {
             setFrozenCard({ ...c, enabled: false });
           } else {
             log('round-complete', { lastCard: { row: c.row, col: c.col, label: c.label } });
             setFrozenCard(null);
-            setSelectedCard(prev => prev?.row === c.row && prev?.col === c.col ? { ...prev, enabled: false } : { ...c, enabled: false });
             setRoundComplete(true);
             setLastClicked('Round complete');
           }
@@ -241,9 +250,9 @@ export default function App() {
             pushUndo({ type: 'edit', previous });
           }
           log('ipc:save-card', { row: edited.row, col: edited.col, label: edited.label, enabled: edited.enabled });
-          setCardsData(prev => prev.map(cd =>
+          setCardsData(prev => ({ ...prev, cards: prev.cards.map(cd =>
             cd.row === edited.row && cd.col === edited.col ? edited : cd
-          ));
+          ) }));
           setSelectedCard(prev => prev?.row === edited.row && prev?.col === edited.col ? edited : prev);
           const catName = cardsData.categories[edited.col]?.name || '';
           setLastClicked(`${edited.label} — ${catName}`);
@@ -313,11 +322,11 @@ export default function App() {
     if (!card.enabled) return;
     log('card:rightClick-disable', { row: card.row, col: card.col, label: card.label });
     pushUndo({ type: 'disable', row: card.row, col: card.col });
-    setCardsData(prev => prev.map(c =>
+    setCardsData(prev => ({ ...prev, cards: prev.cards.map(c =>
       c.row === card.row && c.col === card.col
         ? { ...c, enabled: false }
         : c
-    ));
+    ) }));
     setSelectedCard(prev => {
       if (prev?.row === card.row && prev?.col === card.col) return null;
       return prev;

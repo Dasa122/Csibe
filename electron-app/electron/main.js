@@ -30,6 +30,7 @@ if (process.platform === 'linux') {
   app.commandLine.appendSwitch('disable-gpu-sandbox');
   app.commandLine.appendSwitch('in-process-gpu');
   app.commandLine.appendSwitch('disable-features', 'NetworkServiceSandbox');
+  app.commandLine.appendSwitch('disable-dev-shm-usage');
   app.commandLine.appendSwitch('disable-vulkan');
   app.commandLine.appendSwitch('use-gl', 'desktop');
   log('Linux flags applied: ELECTRON_NO_SANDBOX=1, --no-sandbox, --in-process-gpu, --disable-features=NetworkServiceSandbox, --disable-vulkan, --use-gl=desktop');

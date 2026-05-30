@@ -258,10 +258,18 @@ export default function DevScreen() {
               <div className="ds-detail-header">
                 <div>
                   <h2>{categories[selected.col]?.icon} {categories[selected.col]?.name}</h2>
-                  <p>{selected.label} pont</p>
+                  <p>
+                    {selected.label} pont
+                    {selected.difficulty === 'hard' && (
+                      <span className="ds-point-multiplier"> ×2</span>
+                    )}
+                  </p>
                 </div>
                 <div className="ds-detail-chip-row">
                   <span className="ds-detail-chip">{selected.enabled ? 'Live' : 'Disabled'}</span>
+                  <span className={`ds-detail-chip ${selected.difficulty === 'hard' ? 'ds-detail-chip--danger' : 'ds-detail-chip--success'}`}>
+                    {selected.difficulty === 'hard' ? '🔴 Hard' : '🟢 Easy'}
+                  </span>
                   {selected.audio && <span className="ds-detail-chip ds-detail-chip--accent">Audio</span>}
                   {selected.image && <span className="ds-detail-chip ds-detail-chip--accent">Image</span>}
                 </div>

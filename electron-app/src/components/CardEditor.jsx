@@ -6,6 +6,7 @@ export default function CardEditor({ card, categories, onSave, onCancel }) {
   const [image, setImage] = useState(card.image || '');
   const [answer, setAnswer] = useState(card.answer || '');
   const [audio, setAudio] = useState(card.audio || '');
+  const [difficulty, setDifficulty] = useState(card.difficulty || 'easy');
   const [audioPlaying, setAudioPlaying] = useState(false);
   const [previewSrc, setPreviewSrc] = useState(card.image || PLACEHOLDER_IMAGE);
   const audioRef = useRef(null);
@@ -26,6 +27,7 @@ export default function CardEditor({ card, categories, onSave, onCancel }) {
       image,
       answer,
       audio: audio || '',
+      difficulty,
     });
   };
 
@@ -113,6 +115,26 @@ export default function CardEditor({ card, categories, onSave, onCancel }) {
               )}
             </div>
             {audio && <audio ref={audioRef} src={audio} onEnded={handleAudioEnded} style={{ display: 'none' }} />}
+          </label>
+
+          <label className="editor-field">
+            <span>Difficulty:</span>
+            <div className="editor-difficulty-row">
+              <button
+                type="button"
+                className={`btn btn--sm ${difficulty === 'easy' ? 'btn--primary' : 'btn--secondary'}`}
+                onClick={() => setDifficulty('easy')}
+              >
+                🟢 Easy (1×)
+              </button>
+              <button
+                type="button"
+                className={`btn btn--sm ${difficulty === 'hard' ? 'btn--danger' : 'btn--secondary'}`}
+                onClick={() => setDifficulty('hard')}
+              >
+                🔴 Hard (2×)
+              </button>
+            </div>
           </label>
 
           <div className="editor-preview">
