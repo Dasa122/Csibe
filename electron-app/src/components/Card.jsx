@@ -73,6 +73,14 @@ const Card = memo(function Card({
             rows={2}
             onClick={e => e.stopPropagation()}
           />
+          <input
+            className="card-setup-input card-setup-input--audio"
+            type="text"
+            value={card.audio || ''}
+            onChange={e => handleFieldChange('audio', e.target.value)}
+            placeholder="Audio path (mp3/wav)"
+            onClick={e => e.stopPropagation()}
+          />
           <label className="card-setup-checkbox">
             <input
               type="checkbox"

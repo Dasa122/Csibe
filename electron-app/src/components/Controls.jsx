@@ -10,6 +10,9 @@ export default function Controls({
   onPresets,
   onSetupMode,
   setupMode,
+  onToggleDevScreen,
+  devScreenOpen,
+  onEditCategories,
   activePresetName,
   lastClicked,
 }) {
@@ -50,6 +53,22 @@ export default function Controls({
         title="Setup mode: edit all cards inline, rename categories"
       >
         ⚙️ Setup
+      </button>
+
+      <button
+        className="controls-btn"
+        onClick={onEditCategories}
+        title="Edit categories: rename, reorder, add/remove columns"
+      >
+        🏷 Categories
+      </button>
+
+      <button
+        className={`controls-btn ${devScreenOpen ? 'controls-btn--active' : ''}`}
+        onClick={onToggleDevScreen}
+        title="Toggle dev/operator screen on second monitor"
+      >
+        📺 Dev Screen
       </button>
 
       <button

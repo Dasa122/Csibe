@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 
 export default function CardEditor({ card, categories, onSave, onCancel }) {
   const [label, setLabel] = useState(card.label);
   const [image, setImage] = useState(card.image || '');
   const [answer, setAnswer] = useState(card.answer || '');
+  const [audio, setAudio] = useState(card.audio || '');
   const [enabled, setEnabled] = useState(card.enabled);
+  const [audioPlaying, setAudioPlaying] = useState(false);
+  const audioRef = useRef(null);
 
   const handleSave = () => {
     onSave({
@@ -12,9 +15,28 @@ export default function CardEditor({ card, categories, onSave, onCancel }) {
       label,
       image,
       answer,
+      audio: audio || '',
       enabled,
     });
   };
+
+  const handlePlayAudio = useCallback(() => {
+    if (!audio) return;
+    if (audioRef.current) {
+      if (audioPlaying) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+        setAudioPlaying(false);
+      } else {
+        audioRef.current.play().catch(() => {});
+        setAudioPlaying(true);
+      }
+    }
+  }, [audio, audioPlaying]);
+
+  const handleAudioEnded = useCallback(() => {
+    setAudioPlaying(false);
+  }, []);
 
   const catName = categories[card.col]?.name || `Column ${card.col + 1}`;
 
@@ -60,6 +82,28 @@ export default function CardEditor({ card, categories, onSave, onCancel }) {
               placeholder="The answer to show..."
               rows={3}
             />
+          </label>
+
+          <label className="editor-field">
+            <span>Audio path (music snippet):</span>
+            <div className="editor-audio-row">
+              <input
+                type="text"
+                value={audio}
+                onChange={e => setAudio(e.target.value)}
+                placeholder="e.g. music/song.mp3"
+              />
+              {audio && (
+                <button
+                  type="button"
+                  className={`btn btn--sm ${audioPlaying ? 'btn--danger' : 'btn--primary'}`}
+                  onClick={handlePlayAudio}
+                >
+                  {audioPlaying ? '⏹ Stop' : '▶ Play'}
+                </button>
+              )}
+            </div>
+            {audio && <audio ref={audioRef} src={audio} onEnded={handleAudioEnded} style={{ display: 'none' }} />}
           </label>
 
           <label className="editor-field editor-field--checkbox">

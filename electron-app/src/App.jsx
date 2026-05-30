@@ -2,12 +2,26 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Grid from './components/Grid';
 import Controls from './components/Controls';
 import CardEditor from './components/CardEditor';
-import SubPage from './components/SubPage';
 import ScreenSelector from './components/ScreenSelector';
 import PresetManager, { loadActivePresetName } from './components/PresetManager';
+import DevScreen from './components/DevScreen';
+import CategoryEditor from './components/CategoryEditor';
 import defaultCards from './data/cards.json';
 
 const STORAGE_KEY = 'mindent-vagy-semmit-cards';
+
+// Hash-based routing for Electron windows
+function useHashRoute() {
+  const [route, setRoute] = useState(() => window.location.hash.replace('#', '') || '/');
+
+  useEffect(() => {
+    const handler = () => setRoute(window.location.hash.replace('#', '') || '/');
+    window.addEventListener('hashchange', handler);
+    return () => window.removeEventListener('hashchange', handler);
+  }, []);
+
+  return route;
+}
 
 function loadCards() {
   try {
@@ -22,25 +36,30 @@ function saveCards(cards) {
 }
 
 export default function App() {
+  const route = useHashRoute();
+
+  // Dev screen route — render standalone operator view
+  if (route === '/dev-screen') {
+    return <DevScreen />;
+  }
   const [cardsData, setCardsData] = useState(loadCards);
   const [selectedCard, setSelectedCard] = useState(null);
-  const [subPageCard, setSubPageCard] = useState(null);
   const [editingCard, setEditingCard] = useState(null);
   const [undoStack, setUndoStack] = useState([]);
   const [showScreenSelector, setShowScreenSelector] = useState(false);
   const [showPresetManager, setShowPresetManager] = useState(false);
+  const [showCategoryEditor, setShowCategoryEditor] = useState(false);
   const [showCardButtons, setShowCardButtons] = useState(false);
   const [setupMode, setSetupMode] = useState(false);
   const [lastClicked, setLastClicked] = useState('—');
-  const [activeScreen, setActiveScreen] = useState(0);
-  const [subScreen, setSubScreen] = useState(1);
+  const [activeScreen, setActiveScreen] = useState(null);
+  const [subScreen, setSubScreen] = useState(null);
+  const [devScreenOpen, setDevScreenOpen] = useState(false);
   const [activePresetName, setActivePresetName] = useState(loadActivePresetName);
 
   // Refs for stable access in event listeners
   const undoStackRef = useRef(undoStack);
   undoStackRef.current = undoStack;
-  const subPageCardRef = useRef(subPageCard);
-  subPageCardRef.current = subPageCard;
   const editingCardRef = useRef(editingCard);
   editingCardRef.current = editingCard;
   const selectedCardRef = useRef(selectedCard);
@@ -68,13 +87,6 @@ export default function App() {
     }
   }, []);
 
-  const handleCloseSubPage = useCallback(() => {
-    setSubPageCard(null);
-    if (window.electronAPI) {
-      window.electronAPI.closeSubpage();
-    }
-  }, []);
-
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e) => {
@@ -91,9 +103,7 @@ export default function App() {
         setShowPresetManager(v => !v);
       }
       if (e.key === 'Escape') {
-        if (subPageCardRef.current) {
-          handleCloseSubPage();
-        } else if (editingCardRef.current) {
+        if (editingCardRef.current) {
           setEditingCard(null);
         } else if (selectedCardRef.current) {
           setSelectedCard(null);
@@ -104,7 +114,52 @@ export default function App() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [handleUndo, handleCloseSubPage, setupMode]);
+  }, [handleUndo, setupMode]);
+
+  // Listen for actions from the dev screen (reverse IPC)
+  useEffect(() => {
+    if (!window.electronAPI) return;
+    const cleanup = window.electronAPI.onMainScreenAction((action, data) => {
+      switch (action) {
+        case 'select-card': {
+          const card = data.card;
+          if (!card) return;
+          setSelectedCard(card);
+          const catName = cardsData.categories[card.col]?.name || '';
+          setLastClicked(`${card.label} — ${catName}`);
+          break;
+        }
+        case 'show-answer':
+          // Could show answer overlay on main screen in the future
+          break;
+        case 'hide-answer':
+          break;
+        case 'disable-card': {
+          const c = data.card;
+          if (!c) return;
+          setCardsData(prev => prev.map(cd =>
+            cd.row === c.row && cd.col === c.col ? { ...cd, enabled: false } : cd
+          ));
+          setSelectedCard(prev => prev?.row === c.row && prev?.col === c.col ? null : prev);
+          break;
+        }
+        default:
+          break;
+      }
+    });
+    return cleanup;
+  }, [cardsData.categories]);
+
+  // Sync full grid data to dev screen when it opens or cards change
+  useEffect(() => {
+    if (!window.electronAPI) return;
+    // Send grid snapshot to dev screen
+    window.electronAPI.sendToDevScreen('sync-grid', {
+      cards: cardsData.cards,
+      categories: cardsData.categories,
+      points: cardsData.points,
+    });
+  }, [cardsData]);
 
   const pushUndo = useCallback((action) => {
     setUndoStack(prev => [...prev.slice(-19), action]);
@@ -114,15 +169,44 @@ export default function App() {
     if (setupMode) return;
     if (!card.enabled) return;
     setSelectedCard(card);
-    setLastClicked(`${card.label} — ${cardsData.categories[card.col]?.name || ''}`);
+    const catName = cardsData.categories[card.col]?.name || '';
+    setLastClicked(`${card.label} — ${catName}`);
     pushUndo({ type: 'select', row: card.row, col: card.col });
+
+    // Sync to dev screen if open
+    if (window.electronAPI) {
+      window.electronAPI.sendToDevScreen('select-card', {
+        card: { ...card },
+        categoryName: catName,
+      });
+    }
   }, [cardsData.categories, pushUndo, setupMode]);
 
   const handleCardDoubleClick = useCallback((card) => {
     if (setupMode) return;
     if (!card.enabled) return;
-    setSubPageCard(card);
-  }, [setupMode]);
+    // Send to dev screen (opens it if not already open)
+    const catName = cardsData.categories[card.col]?.name || '';
+    if (window.electronAPI) {
+      window.electronAPI.sendToDevScreen('select-card', {
+        card: { ...card },
+        categoryName: catName,
+      });
+      // Ensure dev screen is open
+      window.electronAPI.devScreenStatus().then(isOpen => {
+        if (!isOpen) {
+          window.electronAPI.openDevScreen(subScreen).then(() => {
+            setDevScreenOpen(true);
+            // Resend after open
+            window.electronAPI.sendToDevScreen('select-card', {
+              card: { ...card },
+              categoryName: catName,
+            });
+          });
+        }
+      });
+    }
+  }, [setupMode, cardsData.categories, subScreen]);
 
   const handleCardRightClick = useCallback((card) => {
     if (setupMode) return;
@@ -196,6 +280,16 @@ export default function App() {
     }));
   }, []);
 
+  // ---- Category editor save ----
+  const handleSaveCategories = useCallback(({ categories, cards }) => {
+    setCardsData(prev => ({
+      ...prev,
+      categories,
+      cards,
+    }));
+    setShowCategoryEditor(false);
+  }, []);
+
   // ---- Preset load ----
   const handlePresetLoad = useCallback((data) => {
     setCardsData(data);
@@ -213,13 +307,53 @@ export default function App() {
   }, []);
 
   const handleOpenSubOnOtherScreen = useCallback((card) => {
+    // Double-click equivalent: send to dev screen
+    const catName = cardsData.categories[card.col]?.name || '';
     if (window.electronAPI) {
-      window.electronAPI.openSubpage(
-        `/sub/${card.row}/${card.col}`,
-        subScreen
-      );
+      window.electronAPI.devScreenStatus().then(isOpen => {
+        const send = () => window.electronAPI.sendToDevScreen('select-card', {
+          card: { ...card },
+          categoryName: catName,
+        });
+        if (!isOpen) {
+          window.electronAPI.openDevScreen(subScreen).then(() => {
+            setDevScreenOpen(true);
+            send();
+          });
+        } else {
+          send();
+        }
+      });
     }
-  }, [subScreen]);
+  }, [cardsData.categories, subScreen]);
+
+  // ---- Dev Screen toggle ----
+  const handleToggleDevScreen = useCallback(async () => {
+    if (!window.electronAPI) return;
+    if (devScreenOpen) {
+      await window.electronAPI.closeDevScreen();
+      setDevScreenOpen(false);
+    } else {
+      await window.electronAPI.openDevScreen(subScreen);
+      setDevScreenOpen(true);
+      // Send current selection
+      if (selectedCardRef.current) {
+        const card = selectedCardRef.current;
+        const catName = cardsData.categories[card.col]?.name || '';
+        window.electronAPI.sendToDevScreen('select-card', {
+          card: { ...card },
+          categoryName: catName,
+        });
+      }
+    }
+  }, [devScreenOpen, subScreen, cardsData.categories]);
+
+  // Check dev screen status on mount
+  useEffect(() => {
+    if (window.electronAPI) {
+      window.electronAPI.devScreenStatus().then(setDevScreenOpen);
+    }
+  }, []);
 
   return (
     <div className="app">
@@ -235,6 +369,9 @@ export default function App() {
           onPresets={() => setShowPresetManager(true)}
           onSetupMode={() => setSetupMode(v => !v)}
           setupMode={setupMode}
+          onToggleDevScreen={handleToggleDevScreen}
+          devScreenOpen={devScreenOpen}
+          onEditCategories={() => setShowCategoryEditor(true)}
           activePresetName={activePresetName}
           lastClicked={lastClicked}
         />
@@ -326,14 +463,6 @@ export default function App() {
         />
       )}
 
-      {subPageCard && (
-        <SubPage
-          card={subPageCard}
-          category={cardsData.categories[subPageCard.col]}
-          onClose={handleCloseSubPage}
-        />
-      )}
-
       {showScreenSelector && (
         <ScreenSelector
           activeScreen={activeScreen}
@@ -349,6 +478,16 @@ export default function App() {
           cardsData={cardsData}
           onLoad={handlePresetLoad}
           onClose={() => setShowPresetManager(false)}
+        />
+      )}
+
+      {showCategoryEditor && (
+        <CategoryEditor
+          categories={cardsData.categories}
+          points={cardsData.points}
+          cards={cardsData.cards}
+          onSave={handleSaveCategories}
+          onCancel={() => setShowCategoryEditor(false)}
         />
       )}
     </div>
