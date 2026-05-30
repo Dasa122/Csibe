@@ -1,0 +1,34 @@
+{
+  "name": "mindent-vagy-semmit",
+  "version": "2.0.0",
+  "description": "Mindent vagy semmit! - Interactive quiz board (Electron + React)",
+  "main": "electron/main.js",
+  "packageManager": "bun@latest",
+  "scripts": {
+    "dev": "bun run vite & sleep 2 && electron .",
+    "build": "bun run vite build && electron-builder",
+    "vite:dev": "bun run vite",
+    "electron:dev": "electron ."
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.1",
+    "electron": "^28.1.0",
+    "electron-builder": "^24.9.1",
+    "vite": "^5.0.12"
+  },
+  "build": {
+    "appId": "com.csibe.mindentvagysemmit",
+    "productName": "Mindent vagy semmit!",
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "directories": {
+      "output": "release"
+    }
+  }
+}
