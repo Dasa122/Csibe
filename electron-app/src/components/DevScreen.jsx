@@ -18,6 +18,8 @@ export default function DevScreen() {
   const [points, setPoints] = useState([]);
   const [connected, setConnected] = useState(false);
   const [undoDepth, setUndoDepth] = useState(0);
+  const [lastClicked, setLastClicked] = useState('—');
+  const [setupMode, setSetupMode] = useState(false);
 
   const [selected, setSelected] = useState(null);
   const [showAnswer, setShowAnswer] = useState(false);
@@ -49,6 +51,8 @@ export default function DevScreen() {
           if (data.categories) setCategories(data.categories);
           if (data.points) setPoints(data.points);
           setUndoDepth(data.undoDepth || 0);
+          setLastClicked(data.lastClicked || '—');
+          setSetupMode(data.setupMode || false);
           setConnected(true);
           break;
         case 'select-card':
@@ -218,6 +222,49 @@ export default function DevScreen() {
     stopAudioRef();
   }, [selected, stopAudioRef]);
 
+  // ---- Controls (migrated from main screen) ----
+  const handleReset = useCallback(() => {
+    log('action:reset');
+    if (window.electronAPI) {
+      window.electronAPI.selectOnMain('request-reset', {});
+    }
+  }, []);
+
+  const handleToggleSetup = useCallback(() => {
+    log('action:toggle-setup');
+    setSetupMode(v => !v);
+    if (window.electronAPI) {
+      window.electronAPI.selectOnMain('toggle-setup', {});
+    }
+  }, []);
+
+  const handleOpenCategories = useCallback(() => {
+    log('action:open-categories');
+    if (window.electronAPI) {
+      window.electronAPI.selectOnMain('open-categories', {});
+    }
+  }, []);
+
+  const handleOpenPresets = useCallback(() => {
+    log('action:open-presets');
+    if (window.electronAPI) {
+      window.electronAPI.selectOnMain('open-presets', {});
+    }
+  }, []);
+
+  const handleOpenScreens = useCallback(() => {
+    log('action:open-screens');
+    if (window.electronAPI) {
+      window.electronAPI.selectOnMain('open-screens', {});
+    }
+  }, []);
+
+  const handleCloseDevScreen = useCallback(() => {
+    if (window.electronAPI) {
+      window.electronAPI.closeDevScreen();
+    }
+  }, []);
+
   const getCard = (r, c) => cards.find(cd => cd.row === r && cd.col === c);
   const isSelectedCard = (card) => selected?.row === card?.row && selected?.col === card?.col;
 
@@ -241,6 +288,14 @@ export default function DevScreen() {
           <h2 className="ds-idle-title">Open a card on the board</h2>
           <p className="ds-idle-sub">Use the grid to jump into a card, then edit it from this screen.</p>
         </div>
+
+        <div className="ds-controls-bar">
+          <button className="controls-btn" onClick={handleReset} title="Reset all cards">🔄 Reset</button>
+          <button className="controls-btn" onClick={handleToggleSetup} title="Setup mode">⚙️ Setup</button>
+          <button className="controls-btn" onClick={handleOpenCategories} title="Edit categories">🏷 Categories</button>
+          <button className="controls-btn" onClick={handleOpenPresets} title="Save / Load presets">💾 Presets</button>
+          <button className="controls-btn" onClick={handleOpenScreens} title="Select output screen">🖥 Screens</button>
+        </div>
       </div>
     );
   }
@@ -258,8 +313,37 @@ export default function DevScreen() {
             <span className="ds-status-dot" />
             {connected ? 'Connected' : 'Waiting…'}
           </div>
-          <div className="ds-undo-pill">Undo depth: {undoDepth}</div>
+          <div className="ds-undo-pill">Undo: {undoDepth}</div>
+          <button
+            className="controls-btn"
+            onClick={handleCloseDevScreen}
+            title="Close dev screen (Esc)"
+          >
+            ✕ Close
+          </button>
         </div>
+      </div>
+
+      {/* ---- Operator controls (migrated from main screen) ---- */}
+      <div className="ds-controls-bar">
+        <span className="controls-last-clicked" title="Last clicked card">
+          <strong>Last:</strong> {lastClicked}
+        </span>
+        <button className="controls-btn" onClick={handleReset} title="Reset all cards">
+          🔄 Reset
+        </button>
+        <button className={`controls-btn ${setupMode ? 'controls-btn--active' : ''}`} onClick={handleToggleSetup} title="Setup mode">
+          ⚙️ Setup
+        </button>
+        <button className="controls-btn" onClick={handleOpenCategories} title="Edit categories">
+          🏷 Categories
+        </button>
+        <button className="controls-btn" onClick={handleOpenPresets} title="Save / Load presets">
+          💾 Presets
+        </button>
+        <button className="controls-btn" onClick={handleOpenScreens} title="Select output screen">
+          🖥 Screens
+        </button>
       </div>
 
       <div className="ds-layout">

@@ -1,6 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Grid from './components/Grid';
-import Controls from './components/Controls';
 import ScreenSelector from './components/ScreenSelector';
 import PresetManager, { loadActivePresetName } from './components/PresetManager';
 import DevScreen from './components/DevScreen';
@@ -78,6 +77,18 @@ export default function App() {
   const [devScreenOpen, setDevScreenOpen] = useState(false);
   const [activePresetName, setActivePresetName] = useState(loadActivePresetName);
 
+  // Auto-open dev screen on startup
+  useEffect(() => {
+    if (!window.electronAPI || subScreen === null) return;
+    const timer = setTimeout(() => {
+      window.electronAPI.openDevScreen(subScreen).then(() => {
+        setDevScreenOpen(true);
+        syncDevScreen();
+      });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [subScreen]); // eslint-disable-line
+
   // Refs for stable access in event listeners
   const undoStackRef = useRef(undoStack);
   undoStackRef.current = undoStack;
@@ -100,6 +111,8 @@ export default function App() {
       categories: cardsData.categories,
       points: cardsData.points,
       undoDepth: undoStackRef.current.length,
+      lastClicked: lastClicked,
+      setupMode: setupMode,
     });
 
     window.electronAPI.sendToDevScreen('select-card', {
@@ -111,7 +124,7 @@ export default function App() {
       undoDepth: undoStackRef.current.length,
       frozenCard: frozenCardRef.current ? { row: frozenCardRef.current.row, col: frozenCardRef.current.col, label: frozenCardRef.current.label } : null,
     });
-  }, [cardsData.cards, cardsData.categories, cardsData.points, log]);
+  }, [cardsData.cards, cardsData.categories, cardsData.points, lastClicked, setupMode, log]);
 
   const stopAudio = useCallback(() => {
     if (audioRef.current) {
@@ -142,7 +155,7 @@ export default function App() {
 
   useEffect(() => {
     syncDevScreen();
-  }, [syncDevScreen, selectedCard, undoStack]);
+  }, [syncDevScreen, selectedCard, undoStack, lastClicked, setupMode]);
 
   const handleUndo = useCallback(() => {
     const stack = undoStackRef.current;
@@ -291,6 +304,21 @@ export default function App() {
         case 'request-undo':
           log('ipc:request-undo');
           handleUndo();
+          break;
+        case 'request-reset':
+          handleReset();
+          break;
+        case 'toggle-setup':
+          setSetupMode(v => !v);
+          break;
+        case 'open-categories':
+          setShowCategoryEditor(true);
+          break;
+        case 'open-presets':
+          setShowPresetManager(true);
+          break;
+        case 'open-screens':
+          setShowScreenSelector(true);
           break;
         default:
           break;
@@ -475,18 +503,6 @@ export default function App() {
     <div className="app">
       <header className="app-header">
         <h1 className="app-title">Mindent vagy semmit!</h1>
-        <Controls
-          onReset={handleReset}
-          onScreenSelect={() => setShowScreenSelector(true)}
-          onPresets={() => setShowPresetManager(true)}
-          onSetupMode={() => setSetupMode(v => !v)}
-          setupMode={setupMode}
-          onToggleDevScreen={handleToggleDevScreen}
-          devScreenOpen={devScreenOpen}
-          onEditCategories={() => setShowCategoryEditor(true)}
-          activePresetName={activePresetName}
-          lastClicked={lastClicked}
-        />
       </header>
 
       {/* ---- Column titles (editable in setup mode) ---- */}
