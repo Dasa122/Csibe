@@ -1,11 +1,7 @@
 import React from 'react';
 
 export default function Controls({
-  undoStack,
-  onUndo,
   onReset,
-  onToggleEditButtons,
-  showEditButtons,
   onScreenSelect,
   onPresets,
   onSetupMode,
@@ -24,27 +20,10 @@ export default function Controls({
 
       <button
         className="controls-btn"
-        onClick={onUndo}
-        disabled={undoStack.length === 0}
-        title="Undo (Ctrl+Z)"
-      >
-        ↩ Undo
-      </button>
-
-      <button
-        className="controls-btn"
         onClick={onReset}
         title="Reset all cards"
       >
         🔄 Reset
-      </button>
-
-      <button
-        className={`controls-btn ${showEditButtons ? 'controls-btn--active' : ''}`}
-        onClick={onToggleEditButtons}
-        title="Toggle edit buttons on cards"
-      >
-        {showEditButtons ? '👁 Hide Edit' : '✏️ Edit Cards'}
       </button>
 
       <button

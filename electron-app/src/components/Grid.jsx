@@ -6,14 +6,11 @@ const Grid = memo(function Grid({
   categories,
   points,
   selectedCard,
-  showButtons,
   setupMode,
   onCardChange,
   onCardClick,
   onCardDoubleClick,
   onCardRightClick,
-  onEditCard,
-  onOpenSubOnOtherScreen,
 }) {
   const getCard = (r, c) => cards.find(card => card.row === r && card.col === c);
 
@@ -33,14 +30,11 @@ const Grid = memo(function Grid({
                 col={colIdx}
                 category={cat}
                 isSelected={isSelected}
-                showButtons={showButtons}
                 setupMode={setupMode}
                 onCardChange={onCardChange}
                 onClick={() => onCardClick(card)}
                 onDoubleClick={() => onCardDoubleClick(card)}
                 onContextMenu={(e) => { e.preventDefault(); onCardRightClick(card); }}
-                onEdit={() => onEditCard(card)}
-                onOpenOther={() => onOpenSubOnOtherScreen(card)}
               />
             );
           })}

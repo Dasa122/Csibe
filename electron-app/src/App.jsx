@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Grid from './components/Grid';
 import Controls from './components/Controls';
-import CardEditor from './components/CardEditor';
 import ScreenSelector from './components/ScreenSelector';
 import PresetManager, { loadActivePresetName } from './components/PresetManager';
 import DevScreen from './components/DevScreen';
@@ -44,12 +43,10 @@ export default function App() {
   }
   const [cardsData, setCardsData] = useState(loadCards);
   const [selectedCard, setSelectedCard] = useState(null);
-  const [editingCard, setEditingCard] = useState(null);
   const [undoStack, setUndoStack] = useState([]);
   const [showScreenSelector, setShowScreenSelector] = useState(false);
   const [showPresetManager, setShowPresetManager] = useState(false);
   const [showCategoryEditor, setShowCategoryEditor] = useState(false);
-  const [showCardButtons, setShowCardButtons] = useState(false);
   const [setupMode, setSetupMode] = useState(false);
   const [lastClicked, setLastClicked] = useState('—');
   const [activeScreen, setActiveScreen] = useState(null);
@@ -75,15 +72,43 @@ export default function App() {
   // Refs for stable access in event listeners
   const undoStackRef = useRef(undoStack);
   undoStackRef.current = undoStack;
-  const editingCardRef = useRef(editingCard);
-  editingCardRef.current = editingCard;
   const selectedCardRef = useRef(selectedCard);
   selectedCardRef.current = selectedCard;
+
+  const syncDevScreen = useCallback(() => {
+    if (!window.electronAPI) return;
+
+    const selectedSnapshot = selectedCardRef.current
+      ? cardsData.cards.find(card => (
+        card.row === selectedCardRef.current.row && card.col === selectedCardRef.current.col
+      )) || selectedCardRef.current
+      : null;
+
+    window.electronAPI.sendToDevScreen('sync-grid', {
+      cards: cardsData.cards,
+      categories: cardsData.categories,
+      points: cardsData.points,
+      undoDepth: undoStackRef.current.length,
+    });
+
+    window.electronAPI.sendToDevScreen('select-card', {
+      card: selectedSnapshot ? { ...selectedSnapshot } : null,
+      categoryName: selectedSnapshot ? (cardsData.categories[selectedSnapshot.col]?.name || '') : '',
+    });
+  }, [cardsData.cards, cardsData.categories, cardsData.points]);
+
+  const pushUndo = useCallback((action) => {
+    setUndoStack(prev => [...prev.slice(-19), action]);
+  }, []);
 
   // Persist card changes
   useEffect(() => {
     saveCards(cardsData);
   }, [cardsData]);
+
+  useEffect(() => {
+    syncDevScreen();
+  }, [syncDevScreen, selectedCard, undoStack]);
 
   const handleUndo = useCallback(() => {
     const stack = undoStackRef.current;
@@ -99,6 +124,13 @@ export default function App() {
       ));
     } else if (action.type === 'select') {
       setSelectedCard(null);
+    } else if (action.type === 'edit') {
+      const previous = action.previous;
+      if (!previous) return;
+      setCardsData(cd => cd.map(c =>
+        c.row === previous.row && c.col === previous.col ? previous : c
+      ));
+      setSelectedCard(prev => prev?.row === previous.row && prev?.col === previous.col ? previous : prev);
     }
   }, []);
 
@@ -118,9 +150,7 @@ export default function App() {
         setShowPresetManager(v => !v);
       }
       if (e.key === 'Escape') {
-        if (editingCardRef.current) {
-          setEditingCard(null);
-        } else if (selectedCardRef.current) {
+        if (selectedCardRef.current) {
           setSelectedCard(null);
         } else if (setupMode) {
           setSetupMode(false);
@@ -137,24 +167,15 @@ export default function App() {
     const cleanup = window.electronAPI.onMainScreenAction((action, data) => {
       switch (action) {
         case 'dev-ready':
-          // Dev screen just loaded — send full grid snapshot
-          window.electronAPI.sendToDevScreen('sync-grid', {
-            cards: cardsData.cards,
-            categories: cardsData.categories,
-            points: cardsData.points,
-          });
-          // Also send current selection
-          if (selectedCardRef.current) {
-            const card = selectedCardRef.current;
-            window.electronAPI.sendToDevScreen('select-card', {
-              card: { ...card },
-              categoryName: cardsData.categories[card.col]?.name || '',
-            });
-          }
+          syncDevScreen();
           break;
         case 'select-card': {
           const card = data.card;
-          if (!card) return;
+          if (!card) {
+            setSelectedCard(null);
+            return;
+          }
+          pushUndo({ type: 'select', row: card.row, col: card.col });
           setSelectedCard(card);
           const catName = cardsData.categories[card.col]?.name || '';
           setLastClicked(`${card.label} — ${catName}`);
@@ -167,22 +188,37 @@ export default function App() {
         case 'disable-card': {
           const c = data.card;
           if (!c) return;
+          pushUndo({ type: 'disable', row: c.row, col: c.col });
           setCardsData(prev => prev.map(cd =>
             cd.row === c.row && cd.col === c.col ? { ...cd, enabled: false } : cd
           ));
           setSelectedCard(prev => prev?.row === c.row && prev?.col === c.col ? null : prev);
           break;
         }
+        case 'save-card': {
+          const edited = data.card;
+          if (!edited) return;
+          const previous = cardsData.cards.find(cd => cd.row === edited.row && cd.col === edited.col);
+          if (previous) {
+            pushUndo({ type: 'edit', previous });
+          }
+          setCardsData(prev => prev.map(cd =>
+            cd.row === edited.row && cd.col === edited.col ? edited : cd
+          ));
+          setSelectedCard(prev => prev?.row === edited.row && prev?.col === edited.col ? edited : prev);
+          const catName = cardsData.categories[edited.col]?.name || '';
+          setLastClicked(`${edited.label} — ${catName}`);
+          break;
+        }
+        case 'request-undo':
+          handleUndo();
+          break;
         default:
           break;
       }
     });
     return cleanup;
-  }, [cardsData]);
-
-  const pushUndo = useCallback((action) => {
-    setUndoStack(prev => [...prev.slice(-19), action]);
-  }, []);
+  }, [cardsData, handleUndo, pushUndo, syncDevScreen]);
 
   const handleCardClick = useCallback((card) => {
     if (setupMode) return;
@@ -241,17 +277,6 @@ export default function App() {
       return prev;
     });
   }, [pushUndo, setupMode]);
-
-  const handleEditCard = useCallback((card) => {
-    setEditingCard({ ...card });
-  }, []);
-
-  const handleSaveCard = useCallback((edited) => {
-    setCardsData(prev => prev.map(c =>
-      c.row === edited.row && c.col === edited.col ? edited : c
-    ));
-    setEditingCard(null);
-  }, []);
 
   // ---- Setup mode: inline card field change ----
   const handleSetupCardChange = useCallback((changedCard) => {
@@ -325,27 +350,6 @@ export default function App() {
     setActivePresetName('');
   }, []);
 
-  const handleOpenSubOnOtherScreen = useCallback((card) => {
-    // Double-click equivalent: send to dev screen
-    const catName = cardsData.categories[card.col]?.name || '';
-    if (window.electronAPI) {
-      window.electronAPI.devScreenStatus().then(isOpen => {
-        const send = () => window.electronAPI.sendToDevScreen('select-card', {
-          card: { ...card },
-          categoryName: catName,
-        });
-        if (!isOpen) {
-          window.electronAPI.openDevScreen(subScreen).then(() => {
-            setDevScreenOpen(true);
-            send();
-          });
-        } else {
-          send();
-        }
-      });
-    }
-  }, [cardsData.categories, subScreen]);
-
   // ---- Dev Screen toggle ----
   const handleToggleDevScreen = useCallback(async () => {
     if (!window.electronAPI) return;
@@ -356,23 +360,9 @@ export default function App() {
       // Use the selected subScreen display, or let Electron auto-detect
       await window.electronAPI.openDevScreen(subScreen);
       setDevScreenOpen(true);
-      // Sync grid data
-      window.electronAPI.sendToDevScreen('sync-grid', {
-        cards: cardsData.cards,
-        categories: cardsData.categories,
-        points: cardsData.points,
-      });
-      // Send current selection
-      if (selectedCardRef.current) {
-        const card = selectedCardRef.current;
-        const catName = cardsData.categories[card.col]?.name || '';
-        window.electronAPI.sendToDevScreen('select-card', {
-          card: { ...card },
-          categoryName: catName,
-        });
-      }
+      syncDevScreen();
     }
-  }, [devScreenOpen, subScreen, cardsData]);
+  }, [devScreenOpen, subScreen, syncDevScreen]);
 
   // When subScreen changes and dev screen is open, recreate it on the new display
   const handleSubScreenChangeAndMove = useCallback(async (displayId) => {
@@ -380,21 +370,9 @@ export default function App() {
     if (devScreenOpen && window.electronAPI) {
       await window.electronAPI.closeDevScreen();
       await window.electronAPI.openDevScreen(displayId);
-      // Re-sync
-      window.electronAPI.sendToDevScreen('sync-grid', {
-        cards: cardsData.cards,
-        categories: cardsData.categories,
-        points: cardsData.points,
-      });
-      if (selectedCardRef.current) {
-        const card = selectedCardRef.current;
-        window.electronAPI.sendToDevScreen('select-card', {
-          card: { ...card },
-          categoryName: cardsData.categories[card.col]?.name || '',
-        });
-      }
+      syncDevScreen();
     }
-  }, [devScreenOpen, cardsData]);
+  }, [devScreenOpen, syncDevScreen]);
 
   // Check dev screen status on mount
   useEffect(() => {
@@ -408,11 +386,7 @@ export default function App() {
       <header className="app-header">
         <h1 className="app-title">Mindent vagy semmit!</h1>
         <Controls
-          undoStack={undoStack}
-          onUndo={handleUndo}
           onReset={handleReset}
-          onToggleEditButtons={() => setShowCardButtons(v => !v)}
-          showEditButtons={showCardButtons}
           onScreenSelect={() => setShowScreenSelector(true)}
           onPresets={() => setShowPresetManager(true)}
           onSetupMode={() => setSetupMode(v => !v)}
@@ -492,24 +466,12 @@ export default function App() {
         categories={cardsData.categories}
         points={cardsData.points}
         selectedCard={selectedCard}
-        showButtons={showCardButtons}
         setupMode={setupMode}
         onCardChange={handleSetupCardChange}
         onCardClick={handleCardClick}
         onCardDoubleClick={handleCardDoubleClick}
         onCardRightClick={handleCardRightClick}
-        onEditCard={handleEditCard}
-        onOpenSubOnOtherScreen={handleOpenSubOnOtherScreen}
       />
-
-      {editingCard && (
-        <CardEditor
-          card={editingCard}
-          categories={cardsData.categories}
-          onSave={handleSaveCard}
-          onCancel={() => setEditingCard(null)}
-        />
-      )}
 
       {showScreenSelector && (
         <ScreenSelector

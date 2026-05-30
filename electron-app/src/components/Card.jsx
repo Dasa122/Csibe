@@ -6,14 +6,11 @@ const Card = memo(function Card({
   col,
   category,
   isSelected,
-  showButtons,
   setupMode,
   onCardChange,
   onClick,
   onDoubleClick,
   onContextMenu,
-  onEdit,
-  onOpenOther,
 }) {
   const [ripple, setRipple] = useState(null);
 
@@ -108,25 +105,6 @@ const Card = memo(function Card({
       aria-label={`${card.label} pont — ${category.name}`}
     >
       <span className="card-label">{card.label}</span>
-
-      {showButtons && card.enabled && (
-        <div className="card-actions">
-          <button
-            className="card-action-btn card-action-btn--edit"
-            title="Szerkesztés"
-            onClick={(e) => { e.stopPropagation(); onEdit(); }}
-          >
-            ✏️
-          </button>
-          <button
-            className="card-action-btn card-action-btn--screen"
-            title="Megnyitás másik képernyőn"
-            onClick={(e) => { e.stopPropagation(); onOpenOther(); }}
-          >
-            🖥️
-          </button>
-        </div>
-      )}
 
       {ripple && (
         <span
