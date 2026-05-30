@@ -94,7 +94,7 @@ function createMainWindow(targetDisplayId = null) {
 // IPC handlers
 ipcMain.handle('get-screens', () => {
   const primaryId = screen.getPrimaryDisplay().id;
-  return screen.getAllDisplays().map((d, i) => ({
+  const result = screen.getAllDisplays().map((d, i) => ({
     id: d.id,
     index: i,
     label: d.label || `Display ${i + 1}`,
@@ -103,6 +103,8 @@ ipcMain.handle('get-screens', () => {
     size: `${d.size.width}×${d.size.height}`,
     scaleFactor: d.scaleFactor,
   }));
+  log('get-screens →', result.length, 'displays');
+  return result;
 });
 
 ipcMain.handle('move-main-window', (_event, displayId) => {
@@ -110,12 +112,11 @@ ipcMain.handle('move-main-window', (_event, displayId) => {
   const displays = screen.getAllDisplays();
   const target = displays.find(d => d.id === displayId) || displays[0];
   if (!target) return false;
+  log('move-main-window → display', displayId, `${target.size.width}x${target.size.height}`);
 
-  // Leave fullscreen, reposition, re-enter fullscreen
   const wasFullScreen = mainWindow.isFullScreen();
   if (wasFullScreen) mainWindow.setFullScreen(false);
 
-  // Small delay to let the window leave fullscreen before moving
   setTimeout(() => {
     mainWindow.setBounds(target.bounds);
     if (wasFullScreen) {
@@ -128,12 +129,14 @@ ipcMain.handle('move-main-window', (_event, displayId) => {
 
 ipcMain.handle('toggle-fullscreen', () => {
   if (mainWindow) {
-    mainWindow.setFullScreen(!mainWindow.isFullScreen());
+    const next = !mainWindow.isFullScreen();
+    mainWindow.setFullScreen(next);
+    log('toggle-fullscreen →', next);
   }
   return true;
 });
 
-// ---- Dev Screen (persistent second-monitor operator view) ----
+// ---- Dev Screen ----
 function createDevWindow(targetDisplayId = null) {
   if (devWindow) {
     devWindow.close();
@@ -141,7 +144,6 @@ function createDevWindow(targetDisplayId = null) {
   }
 
   const displays = screen.getAllDisplays();
-  // Default to secondary display, fallback to primary
   let displayToUse = displays.length > 1 ? displays[1] : displays[0];
   if (targetDisplayId !== null) {
     const found = displays.find(d => d.id === targetDisplayId);
@@ -149,6 +151,7 @@ function createDevWindow(targetDisplayId = null) {
   }
 
   const { x, y, width, height } = displayToUse.bounds;
+  log('Dev window →', `${width}x${height} at (${x},${y})`);
 
   devWindow = new BrowserWindow({
     x,
@@ -157,20 +160,37 @@ function createDevWindow(targetDisplayId = null) {
     height,
     fullscreen: true,
     frame: false,
+    show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: false,
     },
+  });
+
+  devWindow.once('ready-to-show', () => {
+    devWindow.show();
+    log('Dev window shown');
+  });
+
+  devWindow.webContents.on('did-finish-load', () => {
+    log('Dev window loaded');
+  });
+
+  devWindow.webContents.on('did-fail-load', (_event, code, desc) => {
+    logError(`Dev window load failed: ${code} — ${desc}`);
   });
 
   const devUrl = isDev
     ? 'http://localhost:5173/#/dev-screen'
     : `file://${path.join(__dirname, '..', 'dist', 'index.html')}#/dev-screen`;
 
+  log('Dev window loading:', devUrl);
   devWindow.loadURL(devUrl);
 
   devWindow.on('closed', () => {
+    log('Dev window closed');
     devWindow = null;
   });
 
@@ -178,11 +198,13 @@ function createDevWindow(targetDisplayId = null) {
 }
 
 ipcMain.handle('open-dev-screen', (_event, displayId) => {
+  log('open-dev-screen', displayId || 'auto');
   return createDevWindow(displayId);
 });
 
 ipcMain.handle('close-dev-screen', () => {
   if (devWindow) {
+    log('close-dev-screen');
     devWindow.close();
     devWindow = null;
     return true;
@@ -194,7 +216,6 @@ ipcMain.handle('dev-screen-status', () => {
   return devWindow !== null;
 });
 
-// Forward card updates from main window to dev window
 ipcMain.handle('send-to-dev-screen', (_event, action, data) => {
   if (devWindow && !devWindow.isDestroyed()) {
     devWindow.webContents.send('dev-screen-update', action, data);
@@ -203,7 +224,6 @@ ipcMain.handle('send-to-dev-screen', (_event, action, data) => {
   return false;
 });
 
-// Reverse: dev screen selects a card on the main window
 ipcMain.handle('select-on-main', (_event, action, data) => {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('main-screen-action', action, data);
@@ -212,18 +232,34 @@ ipcMain.handle('select-on-main', (_event, action, data) => {
   return false;
 });
 
+// ── App lifecycle ─────────────────────────────────────────────
+app.on('window-all-closed', () => {
+  log('All windows closed');
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
+});
+
+app.on('before-quit', () => {
+  log('App quitting');
+});
+
+app.on('second-instance', () => {
+  log('Second instance attempted — focusing main window');
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  }
+});
+
 app.whenReady().then(() => {
+  log('App ready');
   createMainWindow();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
+      log('Activate — creating main window');
       createMainWindow();
     }
   });
-});
-
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
 });
