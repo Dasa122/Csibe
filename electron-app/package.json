@@ -5,7 +5,8 @@
   "main": "electron/main.js",
   "packageManager": "bun@latest",
   "scripts": {
-    "dev": "bun run vite & sleep 2 && electron .",
+    "dev": "bun run kill-port ; bun run vite & sleep 2 && electron .",
+    "kill-port": "lsof -ti :5173 | xargs -r kill -9 2>/dev/null; true",
     "build": "bun run vite build && electron-builder",
     "vite:dev": "bun run vite",
     "electron:dev": "electron ."

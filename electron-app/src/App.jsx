@@ -54,6 +54,21 @@ export default function App() {
   const [lastClicked, setLastClicked] = useState('—');
   const [activeScreen, setActiveScreen] = useState(null);
   const [subScreen, setSubScreen] = useState(null);
+  
+  // Initialize screen defaults from Electron on first load
+  useEffect(() => {
+    if (!window.electronAPI) return;
+    window.electronAPI.getScreens().then(displays => {
+      if (displays.length > 0 && activeScreen === null) {
+        setActiveScreen(displays[0].id);
+      }
+      if (displays.length > 1 && subScreen === null) {
+        setSubScreen(displays[1].id);
+      } else if (displays.length === 1 && subScreen === null) {
+        setSubScreen(displays[0].id);
+      }
+    }).catch(() => {});
+  }, []); // eslint-disable-line
   const [devScreenOpen, setDevScreenOpen] = useState(false);
   const [activePresetName, setActivePresetName] = useState(loadActivePresetName);
 
@@ -334,8 +349,15 @@ export default function App() {
       await window.electronAPI.closeDevScreen();
       setDevScreenOpen(false);
     } else {
+      // Use the selected subScreen display, or let Electron auto-detect
       await window.electronAPI.openDevScreen(subScreen);
       setDevScreenOpen(true);
+      // Sync grid data
+      window.electronAPI.sendToDevScreen('sync-grid', {
+        cards: cardsData.cards,
+        categories: cardsData.categories,
+        points: cardsData.points,
+      });
       // Send current selection
       if (selectedCardRef.current) {
         const card = selectedCardRef.current;
@@ -346,7 +368,29 @@ export default function App() {
         });
       }
     }
-  }, [devScreenOpen, subScreen, cardsData.categories]);
+  }, [devScreenOpen, subScreen, cardsData]);
+
+  // When subScreen changes and dev screen is open, recreate it on the new display
+  const handleSubScreenChangeAndMove = useCallback(async (displayId) => {
+    setSubScreen(displayId);
+    if (devScreenOpen && window.electronAPI) {
+      await window.electronAPI.closeDevScreen();
+      await window.electronAPI.openDevScreen(displayId);
+      // Re-sync
+      window.electronAPI.sendToDevScreen('sync-grid', {
+        cards: cardsData.cards,
+        categories: cardsData.categories,
+        points: cardsData.points,
+      });
+      if (selectedCardRef.current) {
+        const card = selectedCardRef.current;
+        window.electronAPI.sendToDevScreen('select-card', {
+          card: { ...card },
+          categoryName: cardsData.categories[card.col]?.name || '',
+        });
+      }
+    }
+  }, [devScreenOpen, cardsData]);
 
   // Check dev screen status on mount
   useEffect(() => {
@@ -468,7 +512,7 @@ export default function App() {
           activeScreen={activeScreen}
           subScreen={subScreen}
           onActiveScreenChange={setActiveScreen}
-          onSubScreenChange={setSubScreen}
+          onSubScreenChange={handleSubScreenChangeAndMove}
           onClose={() => setShowScreenSelector(false)}
         />
       )}

@@ -7,11 +7,15 @@ function log(...args) { console.log(`${LOG_PREFIX} ${new Date().toLocaleTimeStri
 function logError(...args) { console.error(`${LOG_PREFIX} ${new Date().toLocaleTimeString()} ❌`, ...args); }
 
 // ── Crash prevention for Linux (network service, GPU sandbox) ──
+// Must be set BEFORE app.whenReady()
+process.env.ELECTRON_NO_SANDBOX = '1';
+
 if (process.platform === 'linux') {
-  app.commandLine.appendSwitch('disable-gpu-sandbox');
   app.commandLine.appendSwitch('no-sandbox');
+  app.commandLine.appendSwitch('disable-gpu-sandbox');
+  app.commandLine.appendSwitch('in-process-gpu');
   app.commandLine.appendSwitch('disable-features', 'NetworkServiceSandbox');
-  log('Linux flags applied: --no-sandbox, --disable-gpu-sandbox, --disable-features=NetworkServiceSandbox');
+  log('Linux flags applied: ELECTRON_NO_SANDBOX=1, --no-sandbox, --in-process-gpu, --disable-features=NetworkServiceSandbox');
 }
 
 // Only allow one instance
