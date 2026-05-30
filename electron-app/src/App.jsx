@@ -136,6 +136,22 @@ export default function App() {
     if (!window.electronAPI) return;
     const cleanup = window.electronAPI.onMainScreenAction((action, data) => {
       switch (action) {
+        case 'dev-ready':
+          // Dev screen just loaded — send full grid snapshot
+          window.electronAPI.sendToDevScreen('sync-grid', {
+            cards: cardsData.cards,
+            categories: cardsData.categories,
+            points: cardsData.points,
+          });
+          // Also send current selection
+          if (selectedCardRef.current) {
+            const card = selectedCardRef.current;
+            window.electronAPI.sendToDevScreen('select-card', {
+              card: { ...card },
+              categoryName: cardsData.categories[card.col]?.name || '',
+            });
+          }
+          break;
         case 'select-card': {
           const card = data.card;
           if (!card) return;
@@ -145,7 +161,6 @@ export default function App() {
           break;
         }
         case 'show-answer':
-          // Could show answer overlay on main screen in the future
           break;
         case 'hide-answer':
           break;
@@ -163,17 +178,6 @@ export default function App() {
       }
     });
     return cleanup;
-  }, [cardsData.categories]);
-
-  // Sync full grid data to dev screen when it opens or cards change
-  useEffect(() => {
-    if (!window.electronAPI) return;
-    // Send grid snapshot to dev screen
-    window.electronAPI.sendToDevScreen('sync-grid', {
-      cards: cardsData.cards,
-      categories: cardsData.categories,
-      points: cardsData.points,
-    });
   }, [cardsData]);
 
   const pushUndo = useCallback((action) => {

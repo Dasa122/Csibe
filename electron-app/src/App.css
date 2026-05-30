@@ -1132,8 +1132,20 @@ body::after {
    ============================================================ */
 
 ::selection {
-  background: rgba(56, 189, 248, 0.35);
-  color: #fff;
+  background: rgba(56, 189, 248, 0.15);
+  color: inherit;
+}
+
+/* Prevent text selection on the game board */
+.app {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Allow selection in inputs, textareas, and modals */
+input, textarea, .modal, .modal * {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 /* ============================================================

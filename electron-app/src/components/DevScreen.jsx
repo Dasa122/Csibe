@@ -48,8 +48,18 @@ export default function DevScreen() {
       }
     });
 
+    // Tell main window we're ready to receive grid data
+    window.electronAPI.selectOnMain('dev-ready');
+    // Retry after a short delay in case the main window missed it
+    const retry = setTimeout(() => {
+      window.electronAPI.selectOnMain('dev-ready');
+    }, 500);
+
     setConnected(true);
-    return () => cleanup();
+    return () => {
+      cleanup();
+      clearTimeout(retry);
+    };
   }, []);
 
   // Stop audio helper (stable ref for use in effect)
