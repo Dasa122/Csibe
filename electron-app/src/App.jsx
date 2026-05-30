@@ -37,12 +37,18 @@ function saveCards(cards) {
 export default function App() {
   const route = useHashRoute();
 
+  const log = useCallback((message, payload) => {
+    console.log(`[MainScreen] ${new Date().toLocaleTimeString()} │ ${message}`, payload ?? '');
+  }, []);
+
   // Dev screen route — render standalone operator view
   if (route === '/dev-screen') {
     return <DevScreen />;
   }
   const [cardsData, setCardsData] = useState(loadCards);
   const [selectedCard, setSelectedCard] = useState(null);
+  const [frozenCard, setFrozenCard] = useState(null);
+  const [roundComplete, setRoundComplete] = useState(false);
   const [undoStack, setUndoStack] = useState([]);
   const [showScreenSelector, setShowScreenSelector] = useState(false);
   const [showPresetManager, setShowPresetManager] = useState(false);
@@ -74,6 +80,8 @@ export default function App() {
   undoStackRef.current = undoStack;
   const selectedCardRef = useRef(selectedCard);
   selectedCardRef.current = selectedCard;
+  const frozenCardRef = useRef(frozenCard);
+  frozenCardRef.current = frozenCard;
 
   const syncDevScreen = useCallback(() => {
     if (!window.electronAPI) return;
@@ -95,7 +103,12 @@ export default function App() {
       card: selectedSnapshot ? { ...selectedSnapshot } : null,
       categoryName: selectedSnapshot ? (cardsData.categories[selectedSnapshot.col]?.name || '') : '',
     });
-  }, [cardsData.cards, cardsData.categories, cardsData.points]);
+    log('syncDevScreen()', {
+      selected: selectedSnapshot ? { row: selectedSnapshot.row, col: selectedSnapshot.col, label: selectedSnapshot.label } : null,
+      undoDepth: undoStackRef.current.length,
+      frozenCard: frozenCardRef.current ? { row: frozenCardRef.current.row, col: frozenCardRef.current.col, label: frozenCardRef.current.label } : null,
+    });
+  }, [cardsData.cards, cardsData.categories, cardsData.points, log]);
 
   const pushUndo = useCallback((action) => {
     setUndoStack(prev => [...prev.slice(-19), action]);
@@ -117,22 +130,27 @@ export default function App() {
     setUndoStack(prev => prev.slice(0, -1));
 
     if (action.type === 'disable') {
+      log('undo:disable', { row: action.row, col: action.col });
       setCardsData(cd => cd.map(c =>
         c.row === action.row && c.col === action.col
           ? { ...c, enabled: true }
           : c
       ));
+      setFrozenCard(prev => prev?.row === action.row && prev?.col === action.col ? null : prev);
+      setRoundComplete(false);
     } else if (action.type === 'select') {
+      log('undo:select', { row: action.row, col: action.col });
       setSelectedCard(null);
     } else if (action.type === 'edit') {
       const previous = action.previous;
       if (!previous) return;
+      log('undo:edit', { row: previous.row, col: previous.col, label: previous.label });
       setCardsData(cd => cd.map(c =>
         c.row === previous.row && c.col === previous.col ? previous : c
       ));
       setSelectedCard(prev => prev?.row === previous.row && prev?.col === previous.col ? previous : prev);
     }
-  }, []);
+  }, [log]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -167,18 +185,25 @@ export default function App() {
     const cleanup = window.electronAPI.onMainScreenAction((action, data) => {
       switch (action) {
         case 'dev-ready':
+          log('ipc:dev-ready');
           syncDevScreen();
           break;
         case 'select-card': {
           const card = data.card;
           if (!card) {
             setSelectedCard(null);
+            setFrozenCard(null);
+            setRoundComplete(false);
+            log('ipc:select-card cleared');
             return;
           }
           pushUndo({ type: 'select', row: card.row, col: card.col });
           setSelectedCard(card);
+          setFrozenCard(null);
+          setRoundComplete(false);
           const catName = cardsData.categories[card.col]?.name || '';
           setLastClicked(`${card.label} — ${catName}`);
+          log('ipc:select-card', { row: card.row, col: card.col, label: card.label, categoryName: catName });
           break;
         }
         case 'show-answer':
@@ -189,10 +214,23 @@ export default function App() {
           const c = data.card;
           if (!c) return;
           pushUndo({ type: 'disable', row: c.row, col: c.col });
+          log('ipc:disable-card', { row: c.row, col: c.col, label: c.label });
           setCardsData(prev => prev.map(cd =>
             cd.row === c.row && cd.col === c.col ? { ...cd, enabled: false } : cd
           ));
-          setSelectedCard(prev => prev?.row === c.row && prev?.col === c.col ? null : prev);
+          setSelectedCard(prev => prev?.row === c.row && prev?.col === c.col ? { ...prev, enabled: false } : prev);
+          const remainingEnabled = cardsData.cards.some(cd =>
+            !(cd.row === c.row && cd.col === c.col) && cd.enabled
+          );
+          if (remainingEnabled) {
+            setFrozenCard({ ...c, enabled: false });
+          } else {
+            log('round-complete', { lastCard: { row: c.row, col: c.col, label: c.label } });
+            setFrozenCard(null);
+            setSelectedCard(prev => prev?.row === c.row && prev?.col === c.col ? { ...prev, enabled: false } : { ...c, enabled: false });
+            setRoundComplete(true);
+            setLastClicked('Round complete');
+          }
           break;
         }
         case 'save-card': {
@@ -202,6 +240,7 @@ export default function App() {
           if (previous) {
             pushUndo({ type: 'edit', previous });
           }
+          log('ipc:save-card', { row: edited.row, col: edited.col, label: edited.label, enabled: edited.enabled });
           setCardsData(prev => prev.map(cd =>
             cd.row === edited.row && cd.col === edited.col ? edited : cd
           ));
@@ -211,6 +250,7 @@ export default function App() {
           break;
         }
         case 'request-undo':
+          log('ipc:request-undo');
           handleUndo();
           break;
         default:
@@ -222,7 +262,9 @@ export default function App() {
 
   const handleCardClick = useCallback((card) => {
     if (setupMode) return;
+    if (frozenCardRef.current) return;
     if (!card.enabled) return;
+    log('card:click', { row: card.row, col: card.col, label: card.label });
     setSelectedCard(card);
     const catName = cardsData.categories[card.col]?.name || '';
     setLastClicked(`${card.label} — ${catName}`);
@@ -239,7 +281,9 @@ export default function App() {
 
   const handleCardDoubleClick = useCallback((card) => {
     if (setupMode) return;
+    if (frozenCardRef.current) return;
     if (!card.enabled) return;
+    log('card:doubleClick', { row: card.row, col: card.col, label: card.label });
     // Send to dev screen (opens it if not already open)
     const catName = cardsData.categories[card.col]?.name || '';
     if (window.electronAPI) {
@@ -265,7 +309,9 @@ export default function App() {
 
   const handleCardRightClick = useCallback((card) => {
     if (setupMode) return;
+    if (frozenCardRef.current) return;
     if (!card.enabled) return;
+    log('card:rightClick-disable', { row: card.row, col: card.col, label: card.label });
     pushUndo({ type: 'disable', row: card.row, col: card.col });
     setCardsData(prev => prev.map(c =>
       c.row === card.row && c.col === card.col
@@ -343,8 +389,11 @@ export default function App() {
   }, []);
 
   const handleReset = useCallback(() => {
+    log('action:reset');
     setCardsData(defaultCards);
     setSelectedCard(null);
+    setFrozenCard(null);
+    setRoundComplete(false);
     setUndoStack([]);
     setLastClicked('—');
     setActivePresetName('');
@@ -353,6 +402,7 @@ export default function App() {
   // ---- Dev Screen toggle ----
   const handleToggleDevScreen = useCallback(async () => {
     if (!window.electronAPI) return;
+    log('action:toggle-dev-screen', { open: devScreenOpen, subScreen });
     if (devScreenOpen) {
       await window.electronAPI.closeDevScreen();
       setDevScreenOpen(false);
@@ -366,6 +416,7 @@ export default function App() {
 
   // When subScreen changes and dev screen is open, recreate it on the new display
   const handleSubScreenChangeAndMove = useCallback(async (displayId) => {
+    log('action:move-dev-screen', { displayId, devScreenOpen });
     setSubScreen(displayId);
     if (devScreenOpen && window.electronAPI) {
       await window.electronAPI.closeDevScreen();
@@ -429,6 +480,20 @@ export default function App() {
           </div>
         ))}
       </div>
+
+      {frozenCard && !setupMode && (
+        <div className="main-freeze-banner" role="status" aria-live="polite">
+          <span className="main-freeze-banner__dot" />
+          Frozen on {frozenCard.label} — use the dev screen to continue.
+        </div>
+      )}
+
+      {roundComplete && !setupMode && (
+        <div className="main-freeze-banner main-freeze-banner--complete" role="status" aria-live="polite">
+          <span className="main-freeze-banner__dot" />
+          Round complete. You can reset, load a preset, or start a new round.
+        </div>
+      )}
 
       {/* ---- Setup toolbar ---- */}
       {setupMode && (

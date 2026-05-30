@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import CardEditor from './CardEditor';
+import { PLACEHOLDER_IMAGE } from './imagePlaceholder';
 
 /**
  * DevScreen — Controller Dashboard (second monitor).
@@ -8,6 +9,10 @@ import CardEditor from './CardEditor';
  * and the edit/undo tools that stay off the main display.
  */
 export default function DevScreen() {
+  const log = useCallback((message, payload) => {
+    console.log(`[DevScreen] ${new Date().toLocaleTimeString()} │ ${message}`, payload ?? '');
+  }, []);
+
   const [cards, setCards] = useState([]);
   const [categories, setCategories] = useState([]);
   const [points, setPoints] = useState([]);
@@ -18,6 +23,7 @@ export default function DevScreen() {
   const [showAnswer, setShowAnswer] = useState(false);
   const [audioPlaying, setAudioPlaying] = useState(false);
   const [editingCard, setEditingCard] = useState(null);
+  const [previewFallback, setPreviewFallback] = useState(PLACEHOLDER_IMAGE);
   const audioRef = useRef(null);
 
   const stopAudioRef = useCallback(() => {
@@ -35,6 +41,7 @@ export default function DevScreen() {
     }
 
     const cleanup = window.electronAPI.onDevScreenUpdate((action, data) => {
+      log(`ipc:${action}`, data);
       switch (action) {
         case 'sync-grid':
           if (data.cards) setCards(data.cards);
@@ -57,8 +64,10 @@ export default function DevScreen() {
     });
 
     window.electronAPI.selectOnMain('dev-ready');
+    log('ipc:dev-ready sent');
     const retry = setTimeout(() => {
       window.electronAPI.selectOnMain('dev-ready');
+      log('ipc:dev-ready retry sent');
     }, 500);
 
     setConnected(true);
@@ -72,10 +81,16 @@ export default function DevScreen() {
     stopAudioRef();
   }, [selected, stopAudioRef]);
 
+  useEffect(() => {
+    setPreviewFallback(selected?.image || PLACEHOLDER_IMAGE);
+  }, [selected?.image]);
+
   const handleSelectCard = useCallback((card) => {
+    log('card:select', { row: card.row, col: card.col, label: card.label });
     setSelected(card);
     setShowAnswer(false);
     stopAudioRef();
+    setPreviewFallback(card.image || PLACEHOLDER_IMAGE);
 
     if (window.electronAPI) {
       window.electronAPI.selectOnMain('select-card', {
@@ -87,10 +102,12 @@ export default function DevScreen() {
 
   const handleOpenEditor = useCallback(() => {
     if (!selected) return;
+    log('action:open-editor', { row: selected.row, col: selected.col, label: selected.label });
     setEditingCard({ ...selected });
   }, [selected]);
 
   const handleSaveEditor = useCallback((edited) => {
+    log('action:save-editor', { row: edited.row, col: edited.col, label: edited.label });
     setEditingCard(null);
     setSelected(edited);
     setShowAnswer(false);
@@ -100,6 +117,7 @@ export default function DevScreen() {
   }, []);
 
   const handleUndo = useCallback(() => {
+    log('action:undo-request');
     if (window.electronAPI) {
       window.electronAPI.selectOnMain('request-undo', {});
     }
@@ -119,6 +137,7 @@ export default function DevScreen() {
   const handleAudioEnded = useCallback(() => setAudioPlaying(false), []);
 
   const handleRevealAnswer = useCallback(() => {
+    log('action:reveal-answer', selected ? { row: selected.row, col: selected.col, label: selected.label } : null);
     setShowAnswer(true);
     if (window.electronAPI && selected) {
       window.electronAPI.selectOnMain('show-answer', { card: selected });
@@ -126,6 +145,7 @@ export default function DevScreen() {
   }, [selected]);
 
   const handleHideAnswer = useCallback(() => {
+    log('action:hide-answer', selected ? { row: selected.row, col: selected.col, label: selected.label } : null);
     setShowAnswer(false);
     if (window.electronAPI && selected) {
       window.electronAPI.selectOnMain('hide-answer', { card: selected });
@@ -134,10 +154,10 @@ export default function DevScreen() {
 
   const handleMarkDone = useCallback(() => {
     if (!selected) return;
+    log('action:done', { row: selected.row, col: selected.col, label: selected.label });
     if (window.electronAPI) {
       window.electronAPI.selectOnMain('disable-card', { card: selected });
     }
-    setSelected(null);
     setShowAnswer(false);
     stopAudioRef();
   }, [selected, stopAudioRef]);
@@ -248,11 +268,12 @@ export default function DevScreen() {
               </div>
 
               <div className="ds-detail-image-area">
-                {selected.image ? (
-                  <img src={selected.image} alt="Preview" className="ds-detail-image" />
-                ) : (
-                  <div className="ds-detail-no-image">No image</div>
-                )}
+                <img
+                  src={selected.image || previewFallback}
+                  alt={selected.image ? 'Preview' : 'Placeholder preview'}
+                  className={`ds-detail-image ${!selected.image ? 'ds-detail-image--placeholder' : ''}`}
+                  onError={() => setPreviewFallback(PLACEHOLDER_IMAGE)}
+                />
               </div>
 
               <div className="ds-detail-answer">

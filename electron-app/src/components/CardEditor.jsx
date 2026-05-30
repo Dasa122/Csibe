@@ -1,13 +1,23 @@
 import React, { useState, useRef, useCallback } from 'react';
+import { PLACEHOLDER_IMAGE } from './imagePlaceholder';
 
 export default function CardEditor({ card, categories, onSave, onCancel }) {
   const [label, setLabel] = useState(card.label);
   const [image, setImage] = useState(card.image || '');
   const [answer, setAnswer] = useState(card.answer || '');
   const [audio, setAudio] = useState(card.audio || '');
-  const [enabled, setEnabled] = useState(card.enabled);
   const [audioPlaying, setAudioPlaying] = useState(false);
+  const [previewSrc, setPreviewSrc] = useState(card.image || PLACEHOLDER_IMAGE);
   const audioRef = useRef(null);
+
+  const handleImageChange = (value) => {
+    setImage(value);
+    setPreviewSrc(value || PLACEHOLDER_IMAGE);
+  };
+
+  const handleImageError = useCallback(() => {
+    setPreviewSrc(PLACEHOLDER_IMAGE);
+  }, []);
 
   const handleSave = () => {
     onSave({
@@ -16,7 +26,6 @@ export default function CardEditor({ card, categories, onSave, onCancel }) {
       image,
       answer,
       audio: audio || '',
-      enabled,
     });
   };
 
@@ -69,8 +78,8 @@ export default function CardEditor({ card, categories, onSave, onCancel }) {
             <input
               type="text"
               value={image}
-              onChange={e => setImage(e.target.value)}
-              placeholder="e.g. emoji/dog.png"
+              onChange={e => handleImageChange(e.target.value)}
+              placeholder="Paste an image URL or local path"
             />
           </label>
 
@@ -106,25 +115,15 @@ export default function CardEditor({ card, categories, onSave, onCancel }) {
             {audio && <audio ref={audioRef} src={audio} onEnded={handleAudioEnded} style={{ display: 'none' }} />}
           </label>
 
-          <label className="editor-field editor-field--checkbox">
-            <input
-              type="checkbox"
-              checked={enabled}
-              onChange={e => setEnabled(e.target.checked)}
+          <div className="editor-preview">
+            <span>Image preview:</span>
+            <img
+              src={previewSrc}
+              alt={image ? 'Preview' : 'Placeholder preview'}
+              className={!image ? 'editor-preview__placeholder' : ''}
+              onError={handleImageError}
             />
-            <span>Enabled</span>
-          </label>
-
-          {image && (
-            <div className="editor-preview">
-              <span>Image preview:</span>
-              <img
-                src={image}
-                alt="Preview"
-                onError={(e) => { e.target.style.display = 'none'; }}
-              />
-            </div>
-          )}
+          </div>
         </div>
 
         <div className="modal-footer">

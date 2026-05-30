@@ -814,6 +814,12 @@ body::after {
   object-fit: cover;
 }
 
+.ds-detail-image--placeholder {
+  object-fit: contain;
+  padding: 1.2vmin;
+  background: rgba(255,255,255,0.03);
+}
+
 .ds-detail-no-image,
 .ds-detail-answer-hidden,
 .ds-detail-empty {
@@ -957,6 +963,10 @@ body::after {
   border-radius: var(--radius-sm);
   border: 1px solid rgba(255,255,255,0.1);
   background: rgba(0,0,0,0.3);
+}
+
+.editor-preview__placeholder {
+  opacity: 0.96;
 }
 
 /* Audio row in editor */
@@ -1354,6 +1364,40 @@ body::after {
 
 .card-setup-checkbox input {
   width: 1.2vmin; height: 1.2vmin; accent-color: var(--accent);
+}
+
+/* Main-screen freeze indicator */
+.main-freeze-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.7vmin;
+  margin: 0.1vmin 0 0.2vmin;
+  padding: 0.75vmin 1.1vmin;
+  border-radius: 999px;
+  background: rgba(250, 204, 21, 0.12);
+  border: 1px solid rgba(250, 204, 21, 0.18);
+  color: var(--gold);
+  font-size: 1.2vmin;
+  font-weight: 700;
+}
+
+.main-freeze-banner--complete {
+  color: var(--success);
+  background: rgba(74, 222, 128, 0.1);
+  border-color: rgba(74, 222, 128, 0.18);
+}
+
+.main-freeze-banner--complete .main-freeze-banner__dot {
+  background: var(--success);
+  box-shadow: 0 0 0 0.35vmin rgba(74, 222, 128, 0.14);
+}
+
+.main-freeze-banner__dot {
+  width: 0.65vmin;
+  height: 0.65vmin;
+  border-radius: 999px;
+  background: var(--gold);
+  box-shadow: 0 0 0 0.35vmin rgba(250, 204, 21, 0.14);
 }
 
 /* ============================================================

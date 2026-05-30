@@ -5,6 +5,21 @@ const path = require('path');
 const LOG_PREFIX = '[Main]';
 function log(...args) { console.log(`${LOG_PREFIX} ${new Date().toLocaleTimeString()} │`, ...args); }
 function logError(...args) { console.error(`${LOG_PREFIX} ${new Date().toLocaleTimeString()} ❌`, ...args); }
+function logIpc(channel, payload) {
+  log(`IPC ${channel}`, payload);
+}
+function logWindowState(label, win) {
+  if (!win || win.isDestroyed()) {
+    log(`${label} → unavailable`);
+    return;
+  }
+  log(`${label} →`, {
+    bounds: win.getBounds(),
+    isFullScreen: win.isFullScreen(),
+    isMinimized: win.isMinimized(),
+    isFocused: win.isFocused(),
+  });
+}
 
 // ── Crash prevention for Linux (network service, GPU sandbox) ──
 // Must be set BEFORE app.whenReady()
@@ -15,7 +30,9 @@ if (process.platform === 'linux') {
   app.commandLine.appendSwitch('disable-gpu-sandbox');
   app.commandLine.appendSwitch('in-process-gpu');
   app.commandLine.appendSwitch('disable-features', 'NetworkServiceSandbox');
-  log('Linux flags applied: ELECTRON_NO_SANDBOX=1, --no-sandbox, --in-process-gpu, --disable-features=NetworkServiceSandbox');
+  app.commandLine.appendSwitch('disable-vulkan');
+  app.commandLine.appendSwitch('use-gl', 'desktop');
+  log('Linux flags applied: ELECTRON_NO_SANDBOX=1, --no-sandbox, --in-process-gpu, --disable-features=NetworkServiceSandbox, --disable-vulkan, --use-gl=desktop');
 }
 
 // Only allow one instance
@@ -32,6 +49,7 @@ const isDev = process.env.NODE_ENV !== 'production' || !app.isPackaged;
 log(`Starting in ${isDev ? 'DEVELOPMENT' : 'PRODUCTION'} mode`);
 
 function createMainWindow(targetDisplayId = null) {
+  log('createMainWindow()', { targetDisplayId });
   const displays = screen.getAllDisplays();
   log(`Detected ${displays.length} display(s):`, displays.map(d => `${d.size.width}x${d.size.height}`).join(', '));
 
@@ -68,6 +86,7 @@ function createMainWindow(targetDisplayId = null) {
 
   mainWindow.webContents.on('did-finish-load', () => {
     log('Main window loaded');
+    logWindowState('Main window state after load', mainWindow);
   });
 
   mainWindow.webContents.on('did-fail-load', (_event, code, desc) => {
@@ -97,6 +116,7 @@ function createMainWindow(targetDisplayId = null) {
 
 // IPC handlers
 ipcMain.handle('get-screens', () => {
+  logIpc('get-screens', {});
   const primaryId = screen.getPrimaryDisplay().id;
   const result = screen.getAllDisplays().map((d, i) => ({
     id: d.id,
@@ -112,6 +132,7 @@ ipcMain.handle('get-screens', () => {
 });
 
 ipcMain.handle('move-main-window', (_event, displayId) => {
+  logIpc('move-main-window', { displayId });
   if (!mainWindow) return false;
   const displays = screen.getAllDisplays();
   const target = displays.find(d => d.id === displayId) || displays[0];
@@ -126,22 +147,26 @@ ipcMain.handle('move-main-window', (_event, displayId) => {
     if (wasFullScreen) {
       setTimeout(() => mainWindow.setFullScreen(true), 150);
     }
+    logWindowState('Main window after move', mainWindow);
   }, 150);
 
   return true;
 });
 
 ipcMain.handle('toggle-fullscreen', () => {
+  logIpc('toggle-fullscreen', {});
   if (mainWindow) {
     const next = !mainWindow.isFullScreen();
     mainWindow.setFullScreen(next);
     log('toggle-fullscreen →', next);
+    logWindowState('Main window after fullscreen toggle', mainWindow);
   }
   return true;
 });
 
 // ---- Dev Screen ----
 function createDevWindow(targetDisplayId = null) {
+  log('createDevWindow()', { targetDisplayId });
   if (devWindow) {
     devWindow.close();
     devWindow = null;
@@ -180,6 +205,7 @@ function createDevWindow(targetDisplayId = null) {
 
   devWindow.webContents.on('did-finish-load', () => {
     log('Dev window loaded');
+    logWindowState('Dev window state after load', devWindow);
   });
 
   devWindow.webContents.on('did-fail-load', (_event, code, desc) => {
@@ -202,11 +228,13 @@ function createDevWindow(targetDisplayId = null) {
 }
 
 ipcMain.handle('open-dev-screen', (_event, displayId) => {
+  logIpc('open-dev-screen', { displayId });
   log('open-dev-screen', displayId || 'auto');
   return createDevWindow(displayId);
 });
 
 ipcMain.handle('close-dev-screen', () => {
+  logIpc('close-dev-screen', {});
   if (devWindow) {
     log('close-dev-screen');
     devWindow.close();
@@ -217,10 +245,12 @@ ipcMain.handle('close-dev-screen', () => {
 });
 
 ipcMain.handle('dev-screen-status', () => {
+  logIpc('dev-screen-status', { open: devWindow !== null });
   return devWindow !== null;
 });
 
 ipcMain.handle('send-to-dev-screen', (_event, action, data) => {
+  logIpc('send-to-dev-screen', { action, data });
   if (devWindow && !devWindow.isDestroyed()) {
     devWindow.webContents.send('dev-screen-update', action, data);
     return true;
@@ -229,6 +259,7 @@ ipcMain.handle('send-to-dev-screen', (_event, action, data) => {
 });
 
 ipcMain.handle('select-on-main', (_event, action, data) => {
+  logIpc('select-on-main', { action, data });
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('main-screen-action', action, data);
     return true;
