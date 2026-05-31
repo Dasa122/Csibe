@@ -6,6 +6,7 @@ export default function CardEditor({ card, categories, onSave, onCancel }) {
   const [easyImage, setEasyImage] = useState(card.easyImage || card.image || '');
   const [hardImage, setHardImage] = useState(card.hardImage || '');
   const [answer, setAnswer] = useState(card.answer || '');
+  const [answerImage, setAnswerImage] = useState(card.answerImage || '');
   const [easyAudio, setEasyAudio] = useState(card.easyAudio || card.audio || '');
   const [hardAudio, setHardAudio] = useState(card.hardAudio || '');
   const [audioPlaying, setAudioPlaying] = useState(false);
@@ -20,6 +21,7 @@ export default function CardEditor({ card, categories, onSave, onCancel }) {
       easyImage,
       hardImage,
       answer,
+      answerImage: answerImage || '',
       easyAudio: easyAudio || '',
       hardAudio: hardAudio || '',
     });
@@ -95,6 +97,16 @@ export default function CardEditor({ card, categories, onSave, onCancel }) {
               onChange={e => setAnswer(e.target.value)}
               placeholder="The answer to show..."
               rows={3}
+            />
+          </label>
+
+          <label className="editor-field">
+            <span>🖼️ Answer image path:</span>
+            <input
+              type="text"
+              value={answerImage}
+              onChange={e => setAnswerImage(e.target.value)}
+              placeholder="Image URL or path for the answer (optional)"
             />
           </label>
 

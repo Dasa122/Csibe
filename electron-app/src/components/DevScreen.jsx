@@ -264,6 +264,7 @@ export default function DevScreen() {
     if (window.electronAPI && selected) {
       window.electronAPI.selectOnMain('show-answer', {
         answer: selected.answer || '',
+        answerImage: selected.answerImage || '',
         categoryName: categories[selected.col]?.name || '',
         label: selected.label,
       });
@@ -469,7 +470,17 @@ export default function DevScreen() {
 
               <div className="ds-detail-answer">
                 {showAnswer ? (
-                  <div className="ds-detail-answer-text">{selected.answer || '(No answer)'}</div>
+                  <>
+                    <div className="ds-detail-answer-text">{selected.answer || '(No answer)'}</div>
+                    {selected.answerImage && (
+                      <img
+                        src={selected.answerImage}
+                        alt="Answer"
+                        className="ds-detail-answer-image"
+                        onError={(e) => { e.target.style.display = 'none'; }}
+                      />
+                    )}
+                  </>
                 ) : (
                   <div className="ds-detail-answer-hidden">Answer hidden</div>
                 )}

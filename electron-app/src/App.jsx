@@ -59,7 +59,7 @@ export default function App() {
   const [subScreen, setSubScreen] = useState(null);
   const [showMedia, setShowMedia] = useState(null); // { card, mode: 'easy'|'hard', image, audio, categoryName }
   const [audioIndicator, setAudioIndicator] = useState(null); // { mode: 'easy'|'hard', visible: boolean }
-  const [answerOverlay, setAnswerOverlay] = useState(null); // { text: string, categoryName: string, label: string } | null
+  const [answerOverlay, setAnswerOverlay] = useState(null); // { text: string, image: string, categoryName: string, label: string } | null
   const [audioPlaying, setAudioPlaying] = useState(false);
   const audioRef = useRef(null);
   
@@ -268,9 +268,9 @@ export default function App() {
           break;
         }
         case 'show-answer': {
-          const { answer, categoryName, label } = data;
-          setAnswerOverlay({ text: answer || '(No answer)', categoryName, label });
-          log('ipc:show-answer', { answer });
+          const { answer, answerImage, categoryName, label } = data;
+          setAnswerOverlay({ text: answer || '(No answer)', image: answerImage || '', categoryName, label });
+          log('ipc:show-answer', { answer, answerImage });
           break;
         }
         case 'hide-answer':
@@ -532,6 +532,14 @@ export default function App() {
           <div className="answer-overlay__content" onClick={e => e.stopPropagation()}>
             <div className="answer-overlay__badge">💡 Answer</div>
             <div className="answer-overlay__text">{answerOverlay.text}</div>
+            {answerOverlay.image && (
+              <img
+                src={answerOverlay.image}
+                alt="Answer"
+                className="answer-overlay__image"
+                onError={(e) => { e.target.style.display = 'none'; }}
+              />
+            )}
             <div className="answer-overlay__meta">{answerOverlay.label} pont — {answerOverlay.categoryName}</div>
             <button className="btn btn--secondary btn--large" onClick={() => setAnswerOverlay(null)}>
               ✕ Close

@@ -122,6 +122,18 @@ export default function Preferences({
     a.download = `${name.replace(/[^a-zA-Z0-9]/g, '_')}.json`; a.click();
     URL.revokeObjectURL(url);
   }, [presets]);
+
+  const handlePresetExportAll = useCallback(() => {
+    const names = Object.keys(presets);
+    if (names.length === 0) return;
+    const blob = new Blob([JSON.stringify(presets, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url;
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    a.download = `all-presets-${timestamp}.json`; a.click();
+    URL.revokeObjectURL(url);
+  }, [presets]);
+
   const handlePresetImport = useCallback((e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -129,14 +141,37 @@ export default function Preferences({
     reader.onload = (ev) => {
       try {
         const data = JSON.parse(ev.target.result);
-        const baseName = file.name.replace(/\.json$/i, '');
-        let name = baseName; let i = 1;
-        while (presets[name]) { name = `${baseName} (${i++})`; }
-        setPresets(prev => ({ ...prev, [name]: data }));
-        setActiveName(name);
-        saveActivePresetName(name);
-        onSave({ type: 'load-preset', data });
-        onClose();
+        const firstValue = Object.values(data)[0];
+        const isCollection = firstValue && typeof firstValue === 'object' && !firstValue.cards;
+        
+        if (!isCollection && data.cards) {
+          const baseName = file.name.replace(/\.json$/i, '');
+          let name = baseName; let i = 1;
+          while (presets[name]) { name = `${baseName} (${i++})`; }
+          setPresets(prev => ({ ...prev, [name]: data }));
+          setActiveName(name);
+          saveActivePresetName(name);
+          onSave({ type: 'load-preset', data });
+          onClose();
+        } else if (typeof data === 'object' && Object.keys(data).length > 0) {
+          let imported = 0;
+          setPresets(prev => {
+            const next = { ...prev };
+            for (const [key, val] of Object.entries(data)) {
+              if (val && typeof val === 'object' && val.cards) {
+                let name = key;
+                let j = 1;
+                while (next[name]) { name = `${key} (${j++})`; }
+                next[name] = val;
+                imported++;
+              }
+            }
+            return next;
+          });
+          alert(imported > 0 ? `Imported ${imported} preset(s).` : 'No valid presets found in file.');
+        } else {
+          alert('Invalid preset file.');
+        }
       } catch { alert('Invalid preset file.'); }
     };
     reader.readAsText(file);
@@ -246,6 +281,7 @@ export default function Preferences({
                     <button className="btn btn--primary btn--sm" onClick={handlePresetSave}>💾 {activeName ? 'Save' : 'Save As…'}</button>
                     <button className="btn btn--secondary btn--sm" onClick={() => setSaveAsOpen(true)}>📋 Save As…</button>
                     <button className="btn btn--secondary btn--sm" onClick={() => fileInputRef.current?.click()}>📥 Import</button>
+                    <button className="btn btn--secondary btn--sm" onClick={handlePresetExportAll} title="Export all presets as one file">📤 Export All</button>
                     <input ref={fileInputRef} type="file" accept=".json" style={{ display: 'none' }} onChange={handlePresetImport} />
                   </div>
                 </div>

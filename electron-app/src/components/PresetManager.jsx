@@ -87,6 +87,20 @@ export default function PresetManager({
     URL.revokeObjectURL(url);
   }, [presets]);
 
+  const handleExportAll = useCallback(() => {
+    const names = Object.keys(presets);
+    if (names.length === 0) return;
+    // Export as a single JSON object: { presetName: presetData, ... }
+    const blob = new Blob([JSON.stringify(presets, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    a.download = `all-presets-${timestamp}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [presets]);
+
   const handleImport = useCallback((e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -94,15 +108,45 @@ export default function PresetManager({
     reader.onload = (ev) => {
       try {
         const data = JSON.parse(ev.target.result);
-        const baseName = file.name.replace(/\.json$/i, '');
-        let name = baseName;
-        let i = 1;
-        while (presets[name]) { name = `${baseName} (${i++})`; }
-        setPresets(prev => ({ ...prev, [name]: data }));
-        setActiveName(name);
-        saveActivePresetName(name);
-        onLoad(data);
-        onClose();
+        // Detect: if first value is an object with "cards" key, it's a single preset
+        const firstValue = Object.values(data)[0];
+        const isCollection = firstValue && typeof firstValue === 'object' && !firstValue.cards;
+        
+        if (!isCollection && data.cards) {
+          // Single preset file — import as one preset
+          const baseName = file.name.replace(/\.json$/i, '');
+          let name = baseName;
+          let i = 1;
+          while (presets[name]) { name = `${baseName} (${i++})`; }
+          setPresets(prev => ({ ...prev, [name]: data }));
+          setActiveName(name);
+          saveActivePresetName(name);
+          onLoad(data);
+          onClose();
+        } else if (typeof data === 'object' && Object.keys(data).length > 0) {
+          // Multi-preset collection — merge all
+          let imported = 0;
+          setPresets(prev => {
+            const next = { ...prev };
+            for (const [key, val] of Object.entries(data)) {
+              if (val && typeof val === 'object' && val.cards) {
+                let name = key;
+                let j = 1;
+                while (next[name]) { name = `${key} (${j++})`; }
+                next[name] = val;
+                imported++;
+              }
+            }
+            return next;
+          });
+          if (imported > 0) {
+            alert(`Imported ${imported} preset(s).`);
+          } else {
+            alert('No valid presets found in file.');
+          }
+        } else {
+          alert('Invalid preset file.');
+        }
       } catch (err) {
         alert('Invalid preset file.');
       }
@@ -135,6 +179,9 @@ export default function PresetManager({
               </button>
               <button className="btn btn--secondary btn--sm" onClick={() => fileInputRef.current?.click()}>
                 📥 Import
+              </button>
+              <button className="btn btn--secondary btn--sm" onClick={handleExportAll} title="Export all presets as one file">
+                📤 Export All
               </button>
               <input
                 ref={fileInputRef}
