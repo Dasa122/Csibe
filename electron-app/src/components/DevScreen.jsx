@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import CardEditor from './CardEditor';
 import Preferences from './Preferences';
-import { PLACEHOLDER_IMAGE } from './imagePlaceholder';
 
 /**
  * DevScreen — Controller Dashboard (second monitor).
@@ -27,7 +26,6 @@ export default function DevScreen() {
   const [audioPlaying, setAudioPlaying] = useState(false);
   const [activeAudioMode, setActiveAudioMode] = useState(null); // 'easy' | 'hard' | null — which audio is loaded in the player
   const [editingCard, setEditingCard] = useState(null);
-  const [previewFallback, setPreviewFallback] = useState(PLACEHOLDER_IMAGE);
   const [showMode, setShowMode] = useState(null); // 'easy' | 'hard' | null
   const audioRef = useRef(null);
 
@@ -113,8 +111,6 @@ export default function DevScreen() {
   }, [activeAudioMode]);
 
   useEffect(() => {
-    const img = selected?.easyImage || selected?.image || PLACEHOLDER_IMAGE;
-    setPreviewFallback(img);
     setShowMode(null);
   }, [selected?.easyImage, selected?.image]);
 
@@ -123,7 +119,6 @@ export default function DevScreen() {
     setSelected(card);
     setShowAnswer(false);
     stopAudioRef();
-    setPreviewFallback(card.easyImage || card.image || PLACEHOLDER_IMAGE);
     setShowMode(null);
 
     if (window.electronAPI) {
@@ -218,7 +213,6 @@ export default function DevScreen() {
     stopAudioRef();
     const mode = 'easy';
     setShowMode(mode);
-    setPreviewFallback(image || PLACEHOLDER_IMAGE);
     setShowAnswer(false);
     if (window.electronAPI) {
       window.electronAPI.selectOnMain('show-media', {
@@ -244,7 +238,6 @@ export default function DevScreen() {
     stopAudioRef();
     const mode = 'hard';
     setShowMode(mode);
-    setPreviewFallback(image || PLACEHOLDER_IMAGE);
     setShowAnswer(false);
     if (window.electronAPI) {
       window.electronAPI.selectOnMain('show-media', {
@@ -260,6 +253,11 @@ export default function DevScreen() {
 
   const handleRevealAnswer = useCallback(() => {
     log('action:reveal-answer', selected ? { row: selected.row, col: selected.col, label: selected.label } : null);
+    // Hide any active media before revealing the answer
+    if (showMode) {
+      handleHideMedia();
+    }
+    stopAudioRef();
     setShowAnswer(true);
     if (window.electronAPI && selected) {
       window.electronAPI.selectOnMain('show-answer', {
@@ -269,7 +267,7 @@ export default function DevScreen() {
         label: selected.label,
       });
     }
-  }, [selected, categories]);
+  }, [selected, categories, showMode, stopAudioRef, handleHideMedia]);
 
   const handleHideAnswer = useCallback(() => {
     log('action:hide-answer', selected ? { row: selected.row, col: selected.col, label: selected.label } : null);
@@ -454,35 +452,47 @@ export default function DevScreen() {
                 </div>
               </div>
 
-              <div className="ds-detail-image-area">
-                {showMode && (
-                  <div className={`ds-show-badge ${showMode === 'hard' ? 'ds-show-badge--hard' : 'ds-show-badge--easy'}`}>
-                    {showMode === 'hard' ? '🔴 HARD' : '🟢 EASY'}
-                  </div>
-                )}
-                <img
-                  src={previewFallback}
-                  alt="Preview"
-                  className={`ds-detail-image ${previewFallback === PLACEHOLDER_IMAGE && !(selected?.easyImage || selected?.image || selected?.hardImage) ? 'ds-detail-image--placeholder' : ''}`}
-                  onError={() => setPreviewFallback(PLACEHOLDER_IMAGE)}
-                />
+              <div className="ds-detail-images-stack">
+                {/* ── Hard image (top) ── */}
+                <div className="ds-detail-image-row">
+                  <span className="ds-detail-image-label ds-detail-image-label--hard">🔴 Hard</span>
+                  {selected.hardImage ? (
+                    <img
+                      src={selected.hardImage}
+                      alt="Hard"
+                      className="ds-detail-image"
+                      onError={(e) => { e.target.style.display = 'none'; }}
+                    />
+                  ) : (
+                    <div className="ds-detail-no-image">No hard image</div>
+                  )}
+                </div>
+
+                {/* ── Easy image (bottom) ── */}
+                <div className="ds-detail-image-row">
+                  <span className="ds-detail-image-label ds-detail-image-label--easy">🟢 Easy</span>
+                  {(selected.easyImage || selected.image) ? (
+                    <img
+                      src={selected.easyImage || selected.image}
+                      alt="Easy"
+                      className="ds-detail-image"
+                      onError={(e) => { e.target.style.display = 'none'; }}
+                    />
+                  ) : (
+                    <div className="ds-detail-no-image">No easy image</div>
+                  )}
+                </div>
               </div>
 
               <div className="ds-detail-answer">
-                {showAnswer ? (
-                  <>
-                    <div className="ds-detail-answer-text">{selected.answer || '(No answer)'}</div>
-                    {selected.answerImage && (
-                      <img
-                        src={selected.answerImage}
-                        alt="Answer"
-                        className="ds-detail-answer-image"
-                        onError={(e) => { e.target.style.display = 'none'; }}
-                      />
-                    )}
-                  </>
-                ) : (
-                  <div className="ds-detail-answer-hidden">Answer hidden</div>
+                <div className="ds-detail-answer-text">{selected.answer || '(No answer)'}</div>
+                {selected.answerImage && (
+                  <img
+                    src={selected.answerImage}
+                    alt="Answer"
+                    className="ds-detail-answer-image"
+                    onError={(e) => { e.target.style.display = 'none'; }}
+                  />
                 )}
               </div>
 
@@ -541,15 +551,12 @@ export default function DevScreen() {
 
               {/* ── Reveal text answer ── */}
               <div className="ds-detail-controls">
-                {!showAnswer ? (
-                  <button className="btn btn--sm btn--primary" onClick={handleRevealAnswer}>
-                    👁 Reveal Answer
-                  </button>
-                ) : (
-                  <button className="btn btn--sm btn--secondary" onClick={handleHideAnswer}>
-                    🙈 Hide Answer
-                  </button>
-                )}
+                <button
+                  className={`btn btn--sm ${showAnswer ? 'btn--primary' : 'btn--secondary'}`}
+                  onClick={showAnswer ? handleHideAnswer : handleRevealAnswer}
+                >
+                  {showAnswer ? '🙈 Hide Answer' : '👁 Reveal Answer'}
+                </button>
               </div>
 
               <audio ref={audioRef} src={activeAudioMode === 'hard' ? (selected.hardAudio || '') : (selected.easyAudio || selected.audio || '')} onEnded={handleAudioEnded} style={{ display: 'none' }} />

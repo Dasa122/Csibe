@@ -83,39 +83,42 @@ function createMainWindow(targetDisplayId = null) {
     },
   });
 
+  // Use local reference so pending events can't crash if window is replaced
+  const mainWin = mainWindow;
+
   // Show window once content is ready to avoid white flash
-  mainWindow.once('ready-to-show', () => {
-    mainWindow.show();
+  mainWin.once('ready-to-show', () => {
+    mainWin.show();
     log('Main window shown');
   });
 
-  mainWindow.webContents.on('did-finish-load', () => {
+  mainWin.webContents.on('did-finish-load', () => {
     log('Main window loaded');
-    logWindowState('Main window state after load', mainWindow);
+    logWindowState('Main window state after load', mainWin);
   });
 
-  mainWindow.webContents.on('did-fail-load', (_event, code, desc) => {
+  mainWin.webContents.on('did-fail-load', (_event, code, desc) => {
     logError(`Main window load failed: ${code} — ${desc}`);
   });
 
   // Log renderer crashes
-  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+  mainWin.webContents.on('render-process-gone', (_event, details) => {
     logError(`Renderer gone: reason=${details.reason}, exitCode=${details.exitCode}`);
   });
 
   if (isDev) {
     const url = 'http://localhost:5173';
     log(`Loading: ${url}`);
-    mainWindow.loadURL(url);
+    mainWin.loadURL(url);
   } else {
     const filePath = path.join(__dirname, '..', 'dist', 'index.html');
     log(`Loading file: ${filePath}`);
-    mainWindow.loadFile(filePath);
+    mainWin.loadFile(filePath);
   }
 
-  mainWindow.on('closed', () => {
+  mainWin.on('closed', () => {
     log('Main window closed');
-    mainWindow = null;
+    if (mainWindow === mainWin) mainWindow = null;
   });
 }
 
@@ -174,7 +177,8 @@ function createDevWindow(targetDisplayId = null) {
   log('createDevWindow()', { targetDisplayId });
   if (devWindow) {
     devWindow.close();
-    devWindow = null;
+    // Don't set devWindow=null here — let the 'closed' event handle it.
+    // This prevents race conditions when open-dev-screen is called immediately after.
   }
 
   const displays = screen.getAllDisplays();
@@ -187,7 +191,7 @@ function createDevWindow(targetDisplayId = null) {
   const { x, y, width, height } = displayToUse.bounds;
   log('Dev window →', `${width}x${height} at (${x},${y})`);
 
-  devWindow = new BrowserWindow({
+  const win = new BrowserWindow({
     x,
     y,
     width,
@@ -203,17 +207,19 @@ function createDevWindow(targetDisplayId = null) {
     },
   });
 
-  devWindow.once('ready-to-show', () => {
-    devWindow.show();
+  // Use local 'win' reference in all handlers so pending events from a
+  // previous window can never clobber or crash the current window.
+  win.once('ready-to-show', () => {
+    win.show();
     log('Dev window shown');
   });
 
-  devWindow.webContents.on('did-finish-load', () => {
+  win.webContents.on('did-finish-load', () => {
     log('Dev window loaded');
-    logWindowState('Dev window state after load', devWindow);
+    logWindowState('Dev window state after load', win);
   });
 
-  devWindow.webContents.on('did-fail-load', (_event, code, desc) => {
+  win.webContents.on('did-fail-load', (_event, code, desc) => {
     logError(`Dev window load failed: ${code} — ${desc}`);
   });
 
@@ -222,13 +228,15 @@ function createDevWindow(targetDisplayId = null) {
     : `file://${path.join(__dirname, '..', 'dist', 'index.html')}#/dev-screen`;
 
   log('Dev window loading:', devUrl);
-  devWindow.loadURL(devUrl);
+  win.loadURL(devUrl);
 
-  devWindow.on('closed', () => {
+  win.on('closed', () => {
     log('Dev window closed');
-    devWindow = null;
+    // Only clear devWindow if it still points to THIS window
+    if (devWindow === win) devWindow = null;
   });
 
+  devWindow = win;
   return true;
 }
 
@@ -240,12 +248,13 @@ ipcMain.handle('open-dev-screen', (_event, displayId) => {
 
 ipcMain.handle('close-dev-screen', () => {
   logIpc('close-dev-screen', {});
-  if (devWindow) {
+  if (devWindow && !devWindow.isDestroyed()) {
     log('close-dev-screen');
     devWindow.close();
-    devWindow = null;
+    // Let the 'closed' event set devWindow=null — avoids races
     return true;
   }
+  devWindow = null;
   return false;
 });
 

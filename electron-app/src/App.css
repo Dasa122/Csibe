@@ -1837,25 +1837,58 @@ input, textarea, .modal, .modal * {
   font-weight: 600;
 }
 
-.ds-detail-image-area {
+.ds-detail-images-stack {
+  display: flex; flex-direction: column;
+  gap: 0.8vmin;
   flex: 1;
-  display: flex; align-items: center; justify-content: center;
+  overflow-y: auto;
+}
+
+.ds-detail-image-row {
+  display: flex; flex-direction: column;
   background: rgba(0,0,0,0.3);
   border-radius: var(--radius-sm);
   border: 1px solid rgba(255,255,255,0.06);
-  min-height: 20vmin;
   overflow: hidden;
+  min-height: 12vmin;
+  position: relative;
+}
+
+.ds-detail-image-label {
+  font-size: 1.1vmin;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 0.5vmin 1vmin;
+  background: rgba(0,0,0,0.4);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  text-align: center;
+}
+
+.ds-detail-image-label--hard {
+  color: #f87171;
+  border-bottom-color: rgba(248, 113, 113, 0.25);
+}
+
+.ds-detail-image-label--easy {
+  color: #4ade80;
+  border-bottom-color: rgba(74, 222, 128, 0.25);
 }
 
 .ds-detail-image {
-  max-width: 100%; max-height: 100%;
+  width: 100%;
+  max-height: 20vmin;
   object-fit: contain;
+  padding: 0.5vmin;
 }
 
 .ds-detail-no-image {
+  display: flex; align-items: center; justify-content: center;
   color: var(--text-dim);
-  font-size: 1.5vmin;
-  opacity: 0.5;
+  font-size: 1.3vmin;
+  opacity: 0.4;
+  padding: 3vmin;
+  font-style: italic;
 }
 
 .ds-detail-answer {
