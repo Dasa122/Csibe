@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import CardEditor from './CardEditor';
+import Preferences from './Preferences';
 import { PLACEHOLDER_IMAGE } from './imagePlaceholder';
 
 /**
@@ -19,15 +21,21 @@ export default function DevScreen() {
   const [connected, setConnected] = useState(false);
   const [undoDepth, setUndoDepth] = useState(0);
   const [lastClicked, setLastClicked] = useState('—');
-  const [setupMode, setSetupMode] = useState(false);
 
   const [selected, setSelected] = useState(null);
   const [showAnswer, setShowAnswer] = useState(false);
   const [audioPlaying, setAudioPlaying] = useState(false);
+  const [activeAudioMode, setActiveAudioMode] = useState(null); // 'easy' | 'hard' | null — which audio is loaded in the player
   const [editingCard, setEditingCard] = useState(null);
   const [previewFallback, setPreviewFallback] = useState(PLACEHOLDER_IMAGE);
   const [showMode, setShowMode] = useState(null); // 'easy' | 'hard' | null
   const audioRef = useRef(null);
+
+  // Modal states
+  const [showPreferences, setShowPreferences] = useState(false);
+  const [activeScreen, setActiveScreen] = useState(null);
+  const [subScreen, setSubScreen] = useState(null);
+  const [appTitle, setAppTitle] = useState('Mindent vagy semmit!');
 
   const stopAudioRef = useCallback(() => {
     if (audioRef.current) {
@@ -52,7 +60,9 @@ export default function DevScreen() {
           if (data.points) setPoints(data.points);
           setUndoDepth(data.undoDepth || 0);
           setLastClicked(data.lastClicked || '—');
-          setSetupMode(data.setupMode || false);
+          if (data.activeScreen !== undefined) setActiveScreen(data.activeScreen);
+          if (data.subScreen !== undefined) setSubScreen(data.subScreen);
+          if (data.appTitle !== undefined) setAppTitle(data.appTitle);
           setConnected(true);
           break;
         case 'select-card':
@@ -84,7 +94,23 @@ export default function DevScreen() {
 
   useEffect(() => {
     stopAudioRef();
+    setActiveAudioMode(null);
   }, [selected, stopAudioRef]);
+
+  // Reload + auto-play audio when activeAudioMode changes
+  useEffect(() => {
+    if (!audioRef.current) return;
+    if (activeAudioMode) {
+      // Mode set to 'easy' or 'hard' — load and play
+      audioRef.current.load();
+      audioRef.current.play().then(() => {
+        setAudioPlaying(true);
+      }).catch((err) => {
+        console.log('Audio play failed:', err);
+        setAudioPlaying(false);
+      });
+    }
+  }, [activeAudioMode]);
 
   useEffect(() => {
     const img = selected?.easyImage || selected?.image || PLACEHOLDER_IMAGE;
@@ -131,19 +157,47 @@ export default function DevScreen() {
     }
   }, []);
 
-  const toggleAudio = useCallback((e) => {
-    e.stopPropagation();
-    const audioPath = showMode === 'hard' ? selected?.hardAudio : selected?.easyAudio || selected?.audio;
-    if (!audioPath || !audioRef.current) return;
-    if (audioPlaying) {
-      stopAudioRef();
-    } else {
-      audioRef.current.play().catch(() => {});
-      setAudioPlaying(true);
+  const notifyMainAudio = useCallback((mode, playing) => {
+    if (window.electronAPI) {
+      window.electronAPI.selectOnMain('audio-playing', { mode, playing });
     }
-  }, [selected, showMode, audioPlaying, stopAudioRef]);
+  }, []);
 
-  const handleAudioEnded = useCallback(() => setAudioPlaying(false), []);
+  const playEasyAudio = useCallback((e) => {
+    e.stopPropagation();
+    const audioPath = selected?.easyAudio || selected?.audio;
+    if (!audioPath) return;
+    if (activeAudioMode === 'easy' && audioPlaying) {
+      stopAudioRef();
+      setActiveAudioMode(null);
+      notifyMainAudio('easy', false);
+    } else {
+      stopAudioRef();
+      setActiveAudioMode('easy');
+      notifyMainAudio('easy', true);
+    }
+  }, [selected?.easyAudio, selected?.audio, activeAudioMode, audioPlaying, stopAudioRef, notifyMainAudio]);
+
+  const playHardAudio = useCallback((e) => {
+    e.stopPropagation();
+    const audioPath = selected?.hardAudio;
+    if (!audioPath) return;
+    if (activeAudioMode === 'hard' && audioPlaying) {
+      stopAudioRef();
+      setActiveAudioMode(null);
+      notifyMainAudio('hard', false);
+    } else {
+      stopAudioRef();
+      setActiveAudioMode('hard');
+      notifyMainAudio('hard', true);
+    }
+  }, [selected?.hardAudio, activeAudioMode, audioPlaying, stopAudioRef, notifyMainAudio]);
+
+  const handleAudioEnded = useCallback(() => {
+    setAudioPlaying(false);
+    setActiveAudioMode(null);
+    notifyMainAudio(null, false);
+  }, [notifyMainAudio]);
 
   const handleHideMedia = useCallback(() => {
     setShowMode(null);
@@ -154,14 +208,15 @@ export default function DevScreen() {
 
   const handleShowEasy = useCallback(() => {
     if (!selected) return;
+    const image = selected.easyImage || selected.image || '';
+    const audio = selected.easyAudio || selected.audio || '';
+    if (!image && !audio) return; // nothing to show
     if (showMode === 'easy') {
       handleHideMedia();
       return;
     }
     stopAudioRef();
     const mode = 'easy';
-    const image = selected.easyImage || selected.image || '';
-    const audio = selected.easyAudio || selected.audio || '';
     setShowMode(mode);
     setPreviewFallback(image || PLACEHOLDER_IMAGE);
     setShowAnswer(false);
@@ -179,14 +234,15 @@ export default function DevScreen() {
 
   const handleShowHard = useCallback(() => {
     if (!selected) return;
+    const image = selected.hardImage || '';
+    const audio = selected.hardAudio || '';
+    if (!image && !audio) return; // nothing to show
     if (showMode === 'hard') {
       handleHideMedia();
       return;
     }
     stopAudioRef();
     const mode = 'hard';
-    const image = selected.hardImage || '';
-    const audio = selected.hardAudio || '';
     setShowMode(mode);
     setPreviewFallback(image || PLACEHOLDER_IMAGE);
     setShowAnswer(false);
@@ -205,11 +261,21 @@ export default function DevScreen() {
   const handleRevealAnswer = useCallback(() => {
     log('action:reveal-answer', selected ? { row: selected.row, col: selected.col, label: selected.label } : null);
     setShowAnswer(true);
-  }, [selected]);
+    if (window.electronAPI && selected) {
+      window.electronAPI.selectOnMain('show-answer', {
+        answer: selected.answer || '',
+        categoryName: categories[selected.col]?.name || '',
+        label: selected.label,
+      });
+    }
+  }, [selected, categories]);
 
   const handleHideAnswer = useCallback(() => {
     log('action:hide-answer', selected ? { row: selected.row, col: selected.col, label: selected.label } : null);
     setShowAnswer(false);
+    if (window.electronAPI) {
+      window.electronAPI.selectOnMain('hide-answer', {});
+    }
   }, [selected]);
 
   const handleMarkDone = useCallback(() => {
@@ -222,7 +288,7 @@ export default function DevScreen() {
     stopAudioRef();
   }, [selected, stopAudioRef]);
 
-  // ---- Controls (migrated from main screen) ----
+  // ---- Controls ----
   const handleReset = useCallback(() => {
     log('action:reset');
     if (window.electronAPI) {
@@ -230,32 +296,18 @@ export default function DevScreen() {
     }
   }, []);
 
-  const handleToggleSetup = useCallback(() => {
-    log('action:toggle-setup');
-    setSetupMode(v => !v);
-    if (window.electronAPI) {
-      window.electronAPI.selectOnMain('toggle-setup', {});
-    }
+  const handleOpenPreferences = useCallback(() => {
+    log('action:open-preferences');
+    setShowPreferences(true);
   }, []);
 
-  const handleOpenCategories = useCallback(() => {
-    log('action:open-categories');
-    if (window.electronAPI) {
-      window.electronAPI.selectOnMain('open-categories', {});
-    }
-  }, []);
-
-  const handleOpenPresets = useCallback(() => {
-    log('action:open-presets');
-    if (window.electronAPI) {
-      window.electronAPI.selectOnMain('open-presets', {});
-    }
-  }, []);
-
-  const handleOpenScreens = useCallback(() => {
-    log('action:open-screens');
-    if (window.electronAPI) {
-      window.electronAPI.selectOnMain('open-screens', {});
+  const handlePreferencesSave = useCallback((result) => {
+    setShowPreferences(false);
+    if (!window.electronAPI) return;
+    if (result.type === 'load-preset') {
+      window.electronAPI.selectOnMain('replace-all-cards', result.data);
+    } else if (result.type === 'apply-all') {
+      window.electronAPI.selectOnMain('apply-preferences', result);
     }
   }, []);
 
@@ -291,10 +343,8 @@ export default function DevScreen() {
 
         <div className="ds-controls-bar">
           <button className="controls-btn" onClick={handleReset} title="Reset all cards">🔄 Reset</button>
-          <button className="controls-btn" onClick={handleToggleSetup} title="Setup mode">⚙️ Setup</button>
-          <button className="controls-btn" onClick={handleOpenCategories} title="Edit categories">🏷 Categories</button>
-          <button className="controls-btn" onClick={handleOpenPresets} title="Save / Load presets">💾 Presets</button>
-          <button className="controls-btn" onClick={handleOpenScreens} title="Select output screen">🖥 Screens</button>
+          <button className="controls-btn" onClick={handleUndo} disabled={undoDepth === 0} title="Undo last action">↩ Undo</button>
+          <button className="controls-btn" onClick={handleOpenPreferences} title="Preferences">⚙️ Preferences</button>
         </div>
       </div>
     );
@@ -324,7 +374,7 @@ export default function DevScreen() {
         </div>
       </div>
 
-      {/* ---- Operator controls (migrated from main screen) ---- */}
+      {/* ---- Operator controls ---- */}
       <div className="ds-controls-bar">
         <span className="controls-last-clicked" title="Last clicked card">
           <strong>Last:</strong> {lastClicked}
@@ -332,17 +382,11 @@ export default function DevScreen() {
         <button className="controls-btn" onClick={handleReset} title="Reset all cards">
           🔄 Reset
         </button>
-        <button className={`controls-btn ${setupMode ? 'controls-btn--active' : ''}`} onClick={handleToggleSetup} title="Setup mode">
-          ⚙️ Setup
+        <button className="controls-btn" onClick={handleUndo} disabled={undoDepth === 0} title="Undo last action (re-enable cards, revert edits)">
+          ↩ Undo
         </button>
-        <button className="controls-btn" onClick={handleOpenCategories} title="Edit categories">
-          🏷 Categories
-        </button>
-        <button className="controls-btn" onClick={handleOpenPresets} title="Save / Load presets">
-          💾 Presets
-        </button>
-        <button className="controls-btn" onClick={handleOpenScreens} title="Select output screen">
-          🖥 Screens
+        <button className="controls-btn" onClick={handleOpenPreferences} title="Preferences: General, Categories, Presets, Screens">
+          ⚙️ Preferences
         </button>
       </div>
 
@@ -432,51 +476,72 @@ export default function DevScreen() {
               </div>
 
               <div className="ds-detail-controls">
-                <button
-                  className="btn btn--sm btn--secondary"
-                  onClick={handleUndo}
-                  disabled={undoDepth === 0}
-                >
-                  ↩ Undo
-                </button>
                 <button className="btn btn--sm btn--secondary" onClick={handleOpenEditor}>
                   ✏️ Edit
                 </button>
-                <button
-                  className={`btn btn--sm ${showMode === 'easy' ? 'btn--primary' : 'btn--secondary'}`}
-                  onClick={handleShowEasy}
-                >
-                  🟢 Easy Show
-                </button>
-                <button
-                  className={`btn btn--sm ${showMode === 'hard' ? 'btn--danger' : 'btn--secondary'}`}
-                  onClick={handleShowHard}
-                >
-                  🔴 Hard Show
-                </button>
-                {((showMode === 'easy' && (selected.easyAudio || selected.audio)) || (showMode === 'hard' && selected.hardAudio)) && (
-                  <button
-                    className={`btn btn--sm ${audioPlaying ? 'btn--danger' : 'btn--primary'}`}
-                    onClick={toggleAudio}
-                  >
-                    {audioPlaying ? '⏹ Stop' : '🎵 Play'}
-                  </button>
-                )}
-                {!showAnswer ? (
-                  <button className="btn btn--sm btn--primary" onClick={handleRevealAnswer}>
-                    👁 Reveal
-                  </button>
-                ) : (
-                  <button className="btn btn--sm btn--secondary" onClick={handleHideAnswer}>
-                    🙈 Hide
-                  </button>
-                )}
                 <button className="btn btn--sm btn--danger" onClick={handleMarkDone}>
                   ✅ Done
                 </button>
               </div>
 
-              <audio ref={audioRef} src={showMode === 'hard' ? (selected.hardAudio || '') : (selected.easyAudio || selected.audio || '')} onEnded={handleAudioEnded} style={{ display: 'none' }} />
+              {/* ── Show buttons: send image to main screen (hidden when no image) ── */}
+              {((selected.hardImage) || (selected.easyImage || selected.image)) && (
+                <div className="ds-detail-controls">
+                  {selected.hardImage && (
+                    <button
+                      className={`btn btn--sm ${showMode === 'hard' ? 'btn--danger' : 'btn--secondary'}`}
+                      onClick={handleShowHard}
+                    >
+                      🔴 Show Hard
+                    </button>
+                  )}
+                  {(selected.easyImage || selected.image) && (
+                    <button
+                      className={`btn btn--sm ${showMode === 'easy' ? 'btn--primary' : 'btn--secondary'}`}
+                      onClick={handleShowEasy}
+                    >
+                      🟢 Show Easy
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* ── Play buttons: play audio locally on dev screen (hidden when no audio) ── */}
+              {(selected.hardAudio || selected.easyAudio || selected.audio) && (
+                <div className="ds-detail-controls">
+                  {selected.hardAudio && (
+                    <button
+                      className={`btn btn--sm ${activeAudioMode === 'hard' && audioPlaying ? 'btn--danger' : 'btn--primary'}`}
+                      onClick={playHardAudio}
+                    >
+                      {activeAudioMode === 'hard' && audioPlaying ? '⏹ Stop Hard' : '🎵 Play Hard'}
+                    </button>
+                  )}
+                  {(selected.easyAudio || selected.audio) && (
+                    <button
+                      className={`btn btn--sm ${activeAudioMode === 'easy' && audioPlaying ? 'btn--danger' : 'btn--primary'}`}
+                      onClick={playEasyAudio}
+                    >
+                      {activeAudioMode === 'easy' && audioPlaying ? '⏹ Stop Easy' : '🎵 Play Easy'}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* ── Reveal text answer ── */}
+              <div className="ds-detail-controls">
+                {!showAnswer ? (
+                  <button className="btn btn--sm btn--primary" onClick={handleRevealAnswer}>
+                    👁 Reveal Answer
+                  </button>
+                ) : (
+                  <button className="btn btn--sm btn--secondary" onClick={handleHideAnswer}>
+                    🙈 Hide Answer
+                  </button>
+                )}
+              </div>
+
+              <audio ref={audioRef} src={activeAudioMode === 'hard' ? (selected.hardAudio || '') : (selected.easyAudio || selected.audio || '')} onEnded={handleAudioEnded} style={{ display: 'none' }} />
             </>
           ) : (
             <div className="ds-detail-empty">
@@ -487,13 +552,29 @@ export default function DevScreen() {
         </div>
       </div>
 
-      {editingCard && (
+      {editingCard && createPortal(
         <CardEditor
           card={editingCard}
           categories={categories}
           onSave={handleSaveEditor}
           onCancel={() => setEditingCard(null)}
-        />
+        />,
+        document.body
+      )}
+
+      {/* ── Preferences modal (consolidates General, Categories, Presets, Screens) ── */}
+      {showPreferences && createPortal(
+        <Preferences
+          appTitle={appTitle}
+          categories={categories}
+          points={points}
+          cards={cards}
+          activeScreen={activeScreen}
+          subScreen={subScreen}
+          onSave={handlePreferencesSave}
+          onClose={() => setShowPreferences(false)}
+        />,
+        document.body
       )}
     </div>
   );

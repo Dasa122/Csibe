@@ -2,12 +2,8 @@ import React, { memo, useState, useCallback } from 'react';
 
 const Card = memo(function Card({
   card,
-  row,
-  col,
   category,
   isSelected,
-  setupMode,
-  onCardChange,
   onClick,
   onDoubleClick,
   onContextMenu,
@@ -15,7 +11,6 @@ const Card = memo(function Card({
   const [ripple, setRipple] = useState(null);
 
   const handleClick = useCallback((e) => {
-    if (setupMode) return; // no ripple/select in setup mode
     if (!card.enabled) return;
 
     const rect = e.currentTarget.getBoundingClientRect();
@@ -27,72 +22,16 @@ const Card = memo(function Card({
     setTimeout(() => setRipple(null), 700);
 
     onClick();
-  }, [card.enabled, onClick, setupMode]);
-
-  const handleFieldChange = useCallback((field, value) => {
-    onCardChange?.({ ...card, [field]: value });
-  }, [card, onCardChange]);
+  }, [card.enabled, onClick]);
 
   const classNames = [
     'card',
     !card.enabled && 'card--disabled',
     isSelected && 'card--selected',
-    card.easyImage && 'card--has-image',
-    setupMode && 'card--setup',
+    (card.easyImage || card.image) && 'card--has-image',
+    (card.easyAudio || card.audio || card.hardAudio) && 'card--has-audio',
   ].filter(Boolean).join(' ');
 
-  // ---- SETUP MODE: inline form ----
-  if (setupMode) {
-    return (
-      <div className={classNames} role="gridcell">
-        <div className="card-setup-form">
-          <input
-            className="card-setup-input card-setup-input--label"
-            type="text"
-            value={card.label}
-            onChange={e => handleFieldChange('label', e.target.value)}
-            placeholder="Label"
-            onClick={e => e.stopPropagation()}
-          />
-          <input
-            className="card-setup-input card-setup-input--image"
-            type="text"
-            value={card.image || ''}
-            onChange={e => handleFieldChange('image', e.target.value)}
-            placeholder="Image path"
-            onClick={e => e.stopPropagation()}
-          />
-          <textarea
-            className="card-setup-input card-setup-input--answer"
-            value={card.answer || ''}
-            onChange={e => handleFieldChange('answer', e.target.value)}
-            placeholder="Answer text"
-            rows={2}
-            onClick={e => e.stopPropagation()}
-          />
-          <input
-            className="card-setup-input card-setup-input--audio"
-            type="text"
-            value={card.audio || ''}
-            onChange={e => handleFieldChange('audio', e.target.value)}
-            placeholder="Audio path (mp3/wav)"
-            onClick={e => e.stopPropagation()}
-          />
-          <label className="card-setup-checkbox">
-            <input
-              type="checkbox"
-              checked={card.enabled}
-              onChange={e => handleFieldChange('enabled', e.target.checked)}
-              onClick={e => e.stopPropagation()}
-            />
-            <span>Enabled</span>
-          </label>
-        </div>
-      </div>
-    );
-  }
-
-  // ---- PLAY MODE: normal card ----
   return (
     <div
       className={classNames}

@@ -6,8 +6,6 @@ const Grid = memo(function Grid({
   categories,
   points,
   selectedCard,
-  setupMode,
-  onCardChange,
   onCardClick,
   onCardDoubleClick,
   onCardRightClick,
@@ -15,7 +13,7 @@ const Grid = memo(function Grid({
   const getCard = (r, c) => cards.find(card => card.row === r && card.col === c);
 
   return (
-    <div className={`grid ${setupMode ? 'grid--setup' : ''}`} role="grid" aria-label="7×7 game board">
+    <div className="grid" role="grid" aria-label="7×7 game board">
       {points.map((pts, rowIdx) => (
         <div className="grid-row" key={rowIdx}>
           {categories.map((cat, colIdx) => {
@@ -26,12 +24,8 @@ const Grid = memo(function Grid({
               <Card
                 key={`${rowIdx}-${colIdx}`}
                 card={card}
-                row={rowIdx}
-                col={colIdx}
                 category={cat}
                 isSelected={isSelected}
-                setupMode={setupMode}
-                onCardChange={onCardChange}
                 onClick={() => onCardClick(card)}
                 onDoubleClick={() => onCardDoubleClick(card)}
                 onContextMenu={(e) => { e.preventDefault(); onCardRightClick(card); }}

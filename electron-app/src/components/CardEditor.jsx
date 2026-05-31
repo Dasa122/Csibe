@@ -32,6 +32,7 @@ export default function CardEditor({ card, categories, onSave, onCancel }) {
       audioRef.current.currentTime = 0;
       setAudioPlaying(false);
     } else {
+      audioRef.current.load();
       audioRef.current.play().catch(() => {});
       setAudioPlaying(true);
     }

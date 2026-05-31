@@ -1,12 +1,16 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Grid from './components/Grid';
-import ScreenSelector from './components/ScreenSelector';
-import PresetManager, { loadActivePresetName } from './components/PresetManager';
+import { loadActivePresetName } from './components/PresetManager';
 import DevScreen from './components/DevScreen';
-import CategoryEditor from './components/CategoryEditor';
 import defaultCards from './data/cards.json';
 
 const STORAGE_KEY = 'mindent-vagy-semmit-cards';
+const TITLE_KEY = 'mindent-vagy-semmit-title';
+
+function loadTitle() {
+  return localStorage.getItem(TITLE_KEY) || 'Mindent vagy semmit!';
+}
+function saveTitle(t) { localStorage.setItem(TITLE_KEY, t); }
 
 // Hash-based routing for Electron windows
 function useHashRoute() {
@@ -45,18 +49,17 @@ export default function App() {
     return <DevScreen />;
   }
   const [cardsData, setCardsData] = useState(loadCards);
+  const [appTitle, setAppTitle] = useState(loadTitle);
   const [selectedCard, setSelectedCard] = useState(null);
   const [frozenCard, setFrozenCard] = useState(null);
   const [roundComplete, setRoundComplete] = useState(false);
   const [undoStack, setUndoStack] = useState([]);
-  const [showScreenSelector, setShowScreenSelector] = useState(false);
-  const [showPresetManager, setShowPresetManager] = useState(false);
-  const [showCategoryEditor, setShowCategoryEditor] = useState(false);
-  const [setupMode, setSetupMode] = useState(false);
   const [lastClicked, setLastClicked] = useState('—');
   const [activeScreen, setActiveScreen] = useState(null);
   const [subScreen, setSubScreen] = useState(null);
   const [showMedia, setShowMedia] = useState(null); // { card, mode: 'easy'|'hard', image, audio, categoryName }
+  const [audioIndicator, setAudioIndicator] = useState(null); // { mode: 'easy'|'hard', visible: boolean }
+  const [answerOverlay, setAnswerOverlay] = useState(null); // { text: string, categoryName: string, label: string } | null
   const [audioPlaying, setAudioPlaying] = useState(false);
   const audioRef = useRef(null);
   
@@ -112,7 +115,9 @@ export default function App() {
       points: cardsData.points,
       undoDepth: undoStackRef.current.length,
       lastClicked: lastClicked,
-      setupMode: setupMode,
+      activeScreen: activeScreen,
+      subScreen: subScreen,
+      appTitle: appTitle,
     });
 
     window.electronAPI.sendToDevScreen('select-card', {
@@ -124,7 +129,7 @@ export default function App() {
       undoDepth: undoStackRef.current.length,
       frozenCard: frozenCardRef.current ? { row: frozenCardRef.current.row, col: frozenCardRef.current.col, label: frozenCardRef.current.label } : null,
     });
-  }, [cardsData.cards, cardsData.categories, cardsData.points, lastClicked, setupMode, log]);
+  }, [cardsData.cards, cardsData.categories, cardsData.points, lastClicked, log]);
 
   const stopAudio = useCallback(() => {
     if (audioRef.current) {
@@ -134,11 +139,19 @@ export default function App() {
     }
   }, []);
 
+  // Reload audio element when source changes (browser requires explicit .load())
+  useEffect(() => {
+    if (audioRef.current && showMedia?.audio) {
+      audioRef.current.load();
+    }
+  }, [showMedia?.audio]);
+
   const toggleMainAudio = useCallback(() => {
     if (!showMedia?.audio || !audioRef.current) return;
     if (audioPlaying) {
       stopAudio();
     } else {
+      audioRef.current.load();
       audioRef.current.play().catch(() => {});
       setAudioPlaying(true);
     }
@@ -155,7 +168,7 @@ export default function App() {
 
   useEffect(() => {
     syncDevScreen();
-  }, [syncDevScreen, selectedCard, undoStack, lastClicked, setupMode]);
+  }, [syncDevScreen, selectedCard, undoStack, lastClicked]);
 
   const handleUndo = useCallback(() => {
     const stack = undoStackRef.current;
@@ -193,25 +206,16 @@ export default function App() {
         e.preventDefault();
         handleUndo();
       }
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        setShowScreenSelector(v => !v);
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
-        e.preventDefault();
-        setShowPresetManager(v => !v);
-      }
+
       if (e.key === 'Escape') {
         if (selectedCardRef.current) {
           setSelectedCard(null);
-        } else if (setupMode) {
-          setSetupMode(false);
         }
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [handleUndo, setupMode]);
+  }, [handleUndo]);
 
   // Listen for actions from the dev screen (reverse IPC)
   useEffect(() => {
@@ -252,6 +256,26 @@ export default function App() {
           stopAudio();
           setShowMedia(null);
           log('ipc:hide-media');
+          break;
+        case 'audio-playing': {
+          const { mode, playing } = data;
+          if (playing) {
+            setAudioIndicator({ mode, visible: true });
+          } else {
+            setAudioIndicator(null);
+          }
+          log('ipc:audio-playing', { mode, playing });
+          break;
+        }
+        case 'show-answer': {
+          const { answer, categoryName, label } = data;
+          setAnswerOverlay({ text: answer || '(No answer)', categoryName, label });
+          log('ipc:show-answer', { answer });
+          break;
+        }
+        case 'hide-answer':
+          setAnswerOverlay(null);
+          log('ipc:hide-answer');
           break;
         case 'disable-card': {
           const c = data.card;
@@ -308,18 +332,67 @@ export default function App() {
         case 'request-reset':
           handleReset();
           break;
-        case 'toggle-setup':
-          setSetupMode(v => !v);
+        case 'replace-all-cards': {
+          setCardsData(data);
+          setSelectedCard(null);
+          setUndoStack([]);
+          setActivePresetName(loadActivePresetName());
+          log('ipc:replace-all-cards');
           break;
-        case 'open-categories':
-          setShowCategoryEditor(true);
+        }
+        case 'save-categories': {
+          const { categories, cards } = data;
+          setCardsData(prev => ({ ...prev, categories, cards }));
+          log('ipc:save-categories', { cats: categories.length, cards: cards.length });
           break;
-        case 'open-presets':
-          setShowPresetManager(true);
+        }
+        case 'set-active-screen': {
+          setActiveScreen(data);
+          if (window.electronAPI) {
+            window.electronAPI.moveMainWindow(data);
+          }
+          log('ipc:set-active-screen', { id: data });
           break;
-        case 'open-screens':
-          setShowScreenSelector(true);
+        }
+        case 'set-sub-screen': {
+          const displayId = data;
+          setSubScreen(displayId);
+          if (devScreenOpen && window.electronAPI) {
+            window.electronAPI.closeDevScreen().then(() => {
+              window.electronAPI.openDevScreen(displayId).then(() => syncDevScreen());
+            });
+          }
+          log('ipc:set-sub-screen', { id: displayId });
           break;
+        }
+        case 'apply-preferences': {
+          const { appTitle: newTitle, categories: newCats, cards: newCards, activeScreen: newActive, subScreen: newSub } = data;
+          if (newTitle !== undefined) {
+            setAppTitle(newTitle);
+            saveTitle(newTitle);
+          }
+          if (newCats || newCards) {
+            setCardsData(prev => ({
+              ...prev,
+              categories: newCats || prev.categories,
+              cards: newCards || prev.cards,
+            }));
+          }
+          if (newActive !== undefined) {
+            setActiveScreen(newActive);
+            if (window.electronAPI) window.electronAPI.moveMainWindow(newActive);
+          }
+          if (newSub !== undefined) {
+            setSubScreen(newSub);
+            if (devScreenOpen && window.electronAPI) {
+              window.electronAPI.closeDevScreen().then(() => {
+                window.electronAPI.openDevScreen(newSub).then(() => syncDevScreen());
+              });
+            }
+          }
+          log('ipc:apply-preferences', { title: newTitle, cats: newCats?.length, cards: newCards?.length });
+          break;
+        }
         default:
           break;
       }
@@ -328,7 +401,6 @@ export default function App() {
   }, [cardsData, handleUndo, pushUndo, syncDevScreen]);
 
   const handleCardClick = useCallback((card) => {
-    if (setupMode) return;
     if (frozenCardRef.current) return;
     if (!card.enabled) return;
     log('card:click', { row: card.row, col: card.col, label: card.label });
@@ -344,10 +416,9 @@ export default function App() {
         categoryName: catName,
       });
     }
-  }, [cardsData.categories, pushUndo, setupMode]);
+  }, [cardsData.categories, pushUndo]);
 
   const handleCardDoubleClick = useCallback((card) => {
-    if (setupMode) return;
     if (frozenCardRef.current) return;
     if (!card.enabled) return;
     log('card:doubleClick', { row: card.row, col: card.col, label: card.label });
@@ -372,10 +443,9 @@ export default function App() {
         }
       });
     }
-  }, [setupMode, cardsData.categories, subScreen]);
+  }, [cardsData.categories, subScreen]);
 
   const handleCardRightClick = useCallback((card) => {
-    if (setupMode) return;
     if (frozenCardRef.current) return;
     if (!card.enabled) return;
     log('card:rightClick-disable', { row: card.row, col: card.col, label: card.label });
@@ -389,71 +459,7 @@ export default function App() {
       if (prev?.row === card.row && prev?.col === card.col) return null;
       return prev;
     });
-  }, [pushUndo, setupMode]);
-
-  // ---- Setup mode: inline card field change ----
-  const handleSetupCardChange = useCallback((changedCard) => {
-    setCardsData(prev => ({
-      ...prev,
-      cards: prev.cards.map(c =>
-        c.row === changedCard.row && c.col === changedCard.col ? changedCard : c
-      ),
-    }));
-  }, []);
-
-  // ---- Setup mode: category edit ----
-  const handleCategoryChange = useCallback((idx, field, value) => {
-    setCardsData(prev => ({
-      ...prev,
-      categories: prev.categories.map((cat, i) =>
-        i === idx ? { ...cat, [field]: value } : cat
-      ),
-    }));
-  }, []);
-
-  // ---- Quick-fill row labels ----
-  const handleQuickFillRow = useCallback((rowIdx, value) => {
-    setCardsData(prev => ({
-      ...prev,
-      cards: prev.cards.map(c =>
-        c.row === rowIdx ? { ...c, label: value } : c
-      ),
-    }));
-  }, []);
-
-  // ---- Bulk enable/disable ----
-  const handleEnableAll = useCallback((enabled) => {
-    setCardsData(prev => ({
-      ...prev,
-      cards: prev.cards.map(c => ({ ...c, enabled })),
-    }));
-  }, []);
-
-  // ---- Bulk clear images/answers ----
-  const handleClearAll = useCallback((field) => {
-    setCardsData(prev => ({
-      ...prev,
-      cards: prev.cards.map(c => ({ ...c, [field]: '' })),
-    }));
-  }, []);
-
-  // ---- Category editor save ----
-  const handleSaveCategories = useCallback(({ categories, cards }) => {
-    setCardsData(prev => ({
-      ...prev,
-      categories,
-      cards,
-    }));
-    setShowCategoryEditor(false);
-  }, []);
-
-  // ---- Preset load ----
-  const handlePresetLoad = useCallback((data) => {
-    setCardsData(data);
-    setSelectedCard(null);
-    setUndoStack([]);
-    setActivePresetName(loadActivePresetName());
-  }, []);
+  }, [pushUndo]);
 
   const handleReset = useCallback(() => {
     log('action:reset');
@@ -464,33 +470,10 @@ export default function App() {
     setUndoStack([]);
     setLastClicked('—');
     setActivePresetName('');
+    setAudioIndicator(null);
+    setAnswerOverlay(null);
+    stopAudio();
   }, []);
-
-  // ---- Dev Screen toggle ----
-  const handleToggleDevScreen = useCallback(async () => {
-    if (!window.electronAPI) return;
-    log('action:toggle-dev-screen', { open: devScreenOpen, subScreen });
-    if (devScreenOpen) {
-      await window.electronAPI.closeDevScreen();
-      setDevScreenOpen(false);
-    } else {
-      // Use the selected subScreen display, or let Electron auto-detect
-      await window.electronAPI.openDevScreen(subScreen);
-      setDevScreenOpen(true);
-      syncDevScreen();
-    }
-  }, [devScreenOpen, subScreen, syncDevScreen]);
-
-  // When subScreen changes and dev screen is open, recreate it on the new display
-  const handleSubScreenChangeAndMove = useCallback(async (displayId) => {
-    log('action:move-dev-screen', { displayId, devScreenOpen });
-    setSubScreen(displayId);
-    if (devScreenOpen && window.electronAPI) {
-      await window.electronAPI.closeDevScreen();
-      await window.electronAPI.openDevScreen(displayId);
-      syncDevScreen();
-    }
-  }, [devScreenOpen, syncDevScreen]);
 
   // Check dev screen status on mount
   useEffect(() => {
@@ -502,81 +485,57 @@ export default function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1 className="app-title">Mindent vagy semmit!</h1>
+        <h1 className="app-title">{appTitle}</h1>
       </header>
 
-      {/* ---- Column titles (editable in setup mode) ---- */}
+      {/* ---- Column titles ---- */}
       <div className="column-titles">
-        {cardsData.categories.map((cat, idx) => (
+        {cardsData.categories.map((cat) => (
           <div key={cat.id} className="column-title" title={cat.name}>
-            {setupMode ? (
-              <div className="column-title-edit">
-                <input
-                  className="column-title-input"
-                  type="text"
-                  value={cat.icon}
-                  onChange={e => handleCategoryChange(idx, 'icon', e.target.value)}
-                  title="Icon (emoji)"
-                />
-                <input
-                  className="column-title-input"
-                  type="text"
-                  value={cat.name}
-                  onChange={e => handleCategoryChange(idx, 'name', e.target.value)}
-                  title="Category name"
-                />
-              </div>
-            ) : (
-              <>
-                <span className="cat-icon">{cat.icon}</span>
-                <span className="cat-name">{cat.name}</span>
-              </>
-            )}
+            <span className="cat-icon">{cat.icon}</span>
+            <span className="cat-name">{cat.name}</span>
           </div>
         ))}
       </div>
 
-      {frozenCard && !setupMode && (
+      {frozenCard && (
         <div className="main-freeze-banner" role="status" aria-live="polite">
           <span className="main-freeze-banner__dot" />
           Frozen on {frozenCard.label} — use the dev screen to continue.
         </div>
       )}
 
-      {roundComplete && !setupMode && (
+      {roundComplete && (
         <div className="main-freeze-banner main-freeze-banner--complete" role="status" aria-live="polite">
           <span className="main-freeze-banner__dot" />
           Round complete. You can reset, load a preset, or start a new round.
         </div>
       )}
 
-      {/* ---- Setup toolbar ---- */}
-      {setupMode && (
-        <div className="setup-toolbar">
-          <span className="setup-toolbar-title">⚙️ Setup Mode</span>
-          <div className="setup-toolbar-actions">
-            <button className="btn btn--secondary btn--sm" onClick={() => handleEnableAll(true)}>
-              ✅ Enable All
+      {/* ---- Audio playing indicator (triggered by dev screen Play buttons) ---- */}
+      {audioIndicator?.visible && (
+        <div className={`audio-indicator ${audioIndicator.mode === 'hard' ? 'audio-indicator--hard' : 'audio-indicator--easy'}`} role="status" aria-live="polite">
+          <span className="audio-indicator__icon">🎵</span>
+          <span className="audio-indicator__label">{audioIndicator.mode === 'hard' ? 'HARD' : 'EASY'}</span>
+          <span className="audio-indicator__bars">
+            <span className="audio-indicator__bar" />
+            <span className="audio-indicator__bar" />
+            <span className="audio-indicator__bar" />
+            <span className="audio-indicator__bar" />
+          </span>
+        </div>
+      )}
+
+      {/* ---- Answer overlay (triggered by dev screen Reveal Answer) ---- */}
+      {answerOverlay && (
+        <div className="answer-overlay" onClick={() => setAnswerOverlay(null)}>
+          <div className="answer-overlay__content" onClick={e => e.stopPropagation()}>
+            <div className="answer-overlay__badge">💡 Answer</div>
+            <div className="answer-overlay__text">{answerOverlay.text}</div>
+            <div className="answer-overlay__meta">{answerOverlay.label} pont — {answerOverlay.categoryName}</div>
+            <button className="btn btn--secondary btn--large" onClick={() => setAnswerOverlay(null)}>
+              ✕ Close
             </button>
-            <button className="btn btn--secondary btn--sm" onClick={() => handleEnableAll(false)}>
-              🚫 Disable All
-            </button>
-            <button className="btn btn--secondary btn--sm" onClick={() => handleClearAll('image')}>
-              🖼 Clear Images
-            </button>
-            <button className="btn btn--secondary btn--sm" onClick={() => handleClearAll('answer')}>
-              📝 Clear Answers
-            </button>
-            <span className="setup-toolbar-hint">Quick row labels:</span>
-            {cardsData.points.map((pts, i) => (
-              <button
-                key={pts}
-                className="btn btn--secondary btn--sm"
-                onClick={() => handleQuickFillRow(i, String(pts))}
-              >
-                Row {i + 1} → {pts}
-              </button>
-            ))}
           </div>
         </div>
       )}
@@ -586,47 +545,19 @@ export default function App() {
         categories={cardsData.categories}
         points={cardsData.points}
         selectedCard={selectedCard}
-        setupMode={setupMode}
-        onCardChange={handleSetupCardChange}
         onCardClick={handleCardClick}
         onCardDoubleClick={handleCardDoubleClick}
         onCardRightClick={handleCardRightClick}
       />
 
-      {showScreenSelector && (
-        <ScreenSelector
-          activeScreen={activeScreen}
-          subScreen={subScreen}
-          onActiveScreenChange={setActiveScreen}
-          onSubScreenChange={handleSubScreenChangeAndMove}
-          onClose={() => setShowScreenSelector(false)}
-        />
-      )}
 
-      {showPresetManager && (
-        <PresetManager
-          cardsData={cardsData}
-          onLoad={handlePresetLoad}
-          onClose={() => setShowPresetManager(false)}
-        />
-      )}
-
-      {showCategoryEditor && (
-        <CategoryEditor
-          categories={cardsData.categories}
-          points={cardsData.points}
-          cards={cardsData.cards}
-          onSave={handleSaveCategories}
-          onCancel={() => setShowCategoryEditor(false)}
-        />
-      )}
 
       {/* ---- Fullscreen media overlay (triggered by dev screen Show buttons) ---- */}
       {showMedia && (
         <div className="subpage-overlay" onClick={() => { stopAudio(); setShowMedia(null); }}>
           <div className="subpage-content" onClick={e => e.stopPropagation()}>
             <div className={`ds-show-badge ${showMedia.mode === 'hard' ? 'ds-show-badge--hard' : 'ds-show-badge--easy'}`} style={{ position: 'static', fontSize: '2vmin', padding: '0.6vmin 1.6vmin' }}>
-              {showMedia.mode === 'hard' ? '🔴 HARD (2×)' : '🟢 EASY (1×)'}
+              {showMedia.mode === 'hard' ? '🔴 HARD (1×)' : '🟢 EASY (0.5×)'}
             </div>
 
             {showMedia.image ? (
@@ -636,21 +567,31 @@ export default function App() {
                 className="subpage-image"
                 onError={(e) => { e.target.style.display = 'none'; }}
               />
+            ) : showMedia.audio ? (
+              <div className="subpage-audio-only">
+                <div className="subpage-audio-icon">🎵</div>
+                <p className="subpage-audio-label">{showMedia.mode === 'hard' ? '🔴 HARD' : '🟢 EASY'} Sound</p>
+                <p className="subpage-meta">{showMedia.card.label} pont — {showMedia.categoryName}</p>
+              </div>
             ) : (
               <div className="subpage-no-image">
                 <div className="subpage-placeholder-icon">🖼️</div>
-                <p>No image for {showMedia.mode} mode</p>
+                <p>No media for {showMedia.mode} mode</p>
                 <p className="subpage-meta">{showMedia.card.label} pont — {showMedia.categoryName}</p>
               </div>
             )}
 
             {showMedia.audio && (
               <div className="subpage-actions">
+                {!showMedia.image && (
+                  <p className="subpage-audio-hint">Press play to start the sound</p>
+                )}
                 <button
                   className={`btn btn--large ${audioPlaying ? 'btn--danger' : 'btn--primary'}`}
                   onClick={toggleMainAudio}
+                  style={!showMedia.image ? { fontSize: '3vmin', padding: '2vmin 5vmin' } : {}}
                 >
-                  {audioPlaying ? '⏹ Stop Audio' : '🎵 Play Audio'}
+                  {audioPlaying ? '⏹ Stop' : '🎵 Play Sound'}
                 </button>
               </div>
             )}

@@ -21,19 +21,23 @@ function logWindowState(label, win) {
   });
 }
 
-// ── Crash prevention for Linux (network service, GPU sandbox) ──
+// ── Linux stability + GPU acceleration ──
 // Must be set BEFORE app.whenReady()
-process.env.ELECTRON_NO_SANDBOX = '1';
-
 if (process.platform === 'linux') {
+  // Stability (kept from original — prevents crashes in certain environments)
   app.commandLine.appendSwitch('no-sandbox');
-  app.commandLine.appendSwitch('disable-gpu-sandbox');
-  app.commandLine.appendSwitch('in-process-gpu');
-  app.commandLine.appendSwitch('disable-features', 'NetworkServiceSandbox');
   app.commandLine.appendSwitch('disable-dev-shm-usage');
-  app.commandLine.appendSwitch('disable-vulkan');
-  app.commandLine.appendSwitch('use-gl', 'desktop');
-  log('Linux flags applied: ELECTRON_NO_SANDBOX=1, --no-sandbox, --in-process-gpu, --disable-features=NetworkServiceSandbox, --disable-vulkan, --use-gl=desktop');
+
+  // GPU acceleration — let Electron pick the best backend (Vulkan > ANGLE > EGL > GL)
+  app.commandLine.appendSwitch('enable-gpu-rasterization');
+  app.commandLine.appendSwitch('enable-zero-copy');
+  app.commandLine.appendSwitch('enable-native-gpu-memory-buffers');
+  app.commandLine.appendSwitch('enable-accelerated-2d-canvas');
+  app.commandLine.appendSwitch('enable-accelerated-video-decode');
+  // Prefer Vulkan if available, fall back to ANGLE/EGL automatically
+  app.commandLine.appendSwitch('enable-features', 'Vulkan,DefaultANGLEVulkan,VaapiVideoDecoder,CanvasOopRasterization');
+
+  log('Linux flags: GPU acceleration ENABLED (Vulkan/ANGLE/EGL), sandbox=off, dev-shm=off');
 }
 
 // Only allow one instance
