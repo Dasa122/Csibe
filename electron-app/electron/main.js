@@ -1,5 +1,6 @@
-const { app, BrowserWindow, screen, ipcMain } = require('electron');
+const { app, BrowserWindow, screen, ipcMain, protocol, net } = require('electron');
 const path = require('path');
+const fs = require('fs');
 
 // ── Logging ──────────────────────────────────────────────────
 const LOG_PREFIX = '[Main]';
@@ -303,6 +304,25 @@ app.on('second-instance', () => {
 
 app.whenReady().then(() => {
   log('App ready');
+
+  // Register custom protocol to serve local files regardless of page origin
+  // (solves file:// restrictions when page loads from http:// in dev mode)
+  protocol.handle('local-file', (request) => {
+    try {
+      const url = new URL(request.url);
+      let filePath = url.pathname;
+      // On Windows, remove leading slash before drive letter (e.g. /C:/... → C:/...)
+      if (process.platform === 'win32' && /^\/[a-zA-Z]:/.test(filePath)) {
+        filePath = filePath.slice(1);
+      }
+      // pathname is still percent-encoded — file:// handles that natively
+      return net.fetch(`file://${filePath}`);
+    } catch (err) {
+      logError(`local-file protocol error: ${err.message}`);
+      return new Response('File not found', { status: 404 });
+    }
+  });
+
   createMainWindow();
 
   app.on('activate', () => {

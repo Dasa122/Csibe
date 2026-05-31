@@ -3,6 +3,7 @@ import Grid from './components/Grid';
 import { loadActivePresetName } from './components/PresetManager';
 import DevScreen from './components/DevScreen';
 import defaultCards from './data/cards.json';
+import { resolveMediaPath } from './components/imagePlaceholder';
 
 const STORAGE_KEY = 'mindent-vagy-semmit-cards';
 const TITLE_KEY = 'mindent-vagy-semmit-title';
@@ -62,7 +63,15 @@ export default function App() {
   const [answerOverlay, setAnswerOverlay] = useState(null); // { text: string, image: string, categoryName: string, label: string } | null
   const [audioPlaying, setAudioPlaying] = useState(false);
   const audioRef = useRef(null);
-  
+  const fadeRef = useRef(null);
+
+  const cancelFade = useCallback(() => {
+    if (fadeRef.current) {
+      cancelAnimationFrame(fadeRef.current);
+      fadeRef.current = null;
+    }
+  }, []);
+
   // Initialize screen defaults from Electron on first load
   useEffect(() => {
     if (!window.electronAPI) return;
@@ -132,12 +141,37 @@ export default function App() {
   }, [cardsData.cards, cardsData.categories, cardsData.points, lastClicked, log]);
 
   const stopAudio = useCallback(() => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
+    cancelFade();
+    const audio = audioRef.current;
+    if (!audio) {
       setAudioPlaying(false);
+      return;
     }
-  }, []);
+    if (audio.paused) {
+      audio.volume = 1;
+      audio.currentTime = 0;
+      setAudioPlaying(false);
+      return;
+    }
+    const startVol = audio.volume;
+    const startTime = performance.now();
+    const duration = 400;
+    const fadeOut = (now) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      audio.volume = startVol * (1 - progress);
+      if (progress < 1) {
+        fadeRef.current = requestAnimationFrame(fadeOut);
+      } else {
+        audio.pause();
+        audio.currentTime = 0;
+        audio.volume = 1;
+        setAudioPlaying(false);
+        fadeRef.current = null;
+      }
+    };
+    fadeRef.current = requestAnimationFrame(fadeOut);
+  }, [cancelFade]);
 
   // Reload audio element when source changes (browser requires explicit .load())
   useEffect(() => {
@@ -151,11 +185,29 @@ export default function App() {
     if (audioPlaying) {
       stopAudio();
     } else {
-      audioRef.current.load();
-      audioRef.current.play().catch(() => {});
-      setAudioPlaying(true);
+      cancelFade();
+      const audio = audioRef.current;
+      audio.volume = 0;
+      audio.load();
+      audio.play().then(() => {
+        setAudioPlaying(true);
+        const startTime = performance.now();
+        const duration = 350;
+        const fadeIn = (now) => {
+          const elapsed = now - startTime;
+          const progress = Math.min(elapsed / duration, 1);
+          audio.volume = progress;
+          if (progress < 1) {
+            fadeRef.current = requestAnimationFrame(fadeIn);
+          } else {
+            audio.volume = 1;
+            fadeRef.current = null;
+          }
+        };
+        fadeRef.current = requestAnimationFrame(fadeIn);
+      }).catch(() => {});
     }
-  }, [showMedia?.audio, audioPlaying, stopAudio]);
+  }, [showMedia?.audio, audioPlaying, stopAudio, cancelFade]);
 
   const pushUndo = useCallback((action) => {
     setUndoStack(prev => [...prev.slice(-19), action]);
@@ -534,7 +586,7 @@ export default function App() {
             <div className="answer-overlay__text">{answerOverlay.text}</div>
             {answerOverlay.image && (
               <img
-                src={answerOverlay.image}
+                src={resolveMediaPath(answerOverlay.image)}
                 alt="Answer"
                 className="answer-overlay__image"
                 onError={(e) => { e.target.style.display = 'none'; }}
@@ -570,7 +622,7 @@ export default function App() {
 
             {showMedia.image ? (
               <img
-                src={showMedia.image}
+                src={resolveMediaPath(showMedia.image)}
                 alt="Card media"
                 className="subpage-image"
                 onError={(e) => { e.target.style.display = 'none'; }}
@@ -611,7 +663,7 @@ export default function App() {
             {showMedia.audio && (
               <audio
                 ref={audioRef}
-                src={showMedia.audio}
+                src={resolveMediaPath(showMedia.audio)}
                 onEnded={() => setAudioPlaying(false)}
                 style={{ display: 'none' }}
               />

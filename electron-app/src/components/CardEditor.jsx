@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
-import { PLACEHOLDER_IMAGE } from './imagePlaceholder';
+import { PLACEHOLDER_IMAGE, resolveMediaPath } from './imagePlaceholder';
 
 export default function CardEditor({ card, categories, onSave, onCancel }) {
   const [label, setLabel] = useState(card.label);
@@ -85,7 +85,7 @@ export default function CardEditor({ card, categories, onSave, onCancel }) {
             <input
               type="text"
               value={hardImage}
-              onChange={e => setHardImage(e.target.value)}
+              onChange={e => { setHardImage(e.target.value); setPreviewSrc(e.target.value || PLACEHOLDER_IMAGE); }}
               placeholder="Hard image URL or path"
             />
           </label>
@@ -105,7 +105,7 @@ export default function CardEditor({ card, categories, onSave, onCancel }) {
             <input
               type="text"
               value={answerImage}
-              onChange={e => setAnswerImage(e.target.value)}
+              onChange={e => { setAnswerImage(e.target.value); setPreviewSrc(e.target.value || PLACEHOLDER_IMAGE); }}
               placeholder="Image URL or path for the answer (optional)"
             />
           </label>
@@ -147,7 +147,7 @@ export default function CardEditor({ card, categories, onSave, onCancel }) {
           <div className="editor-preview">
             <span>Image preview:</span>
             <img
-              src={previewSrc}
+              src={resolveMediaPath(previewSrc)}
               alt={easyImage ? 'Preview' : 'Placeholder preview'}
               className={!easyImage ? 'editor-preview__placeholder' : ''}
               onError={() => setPreviewSrc(PLACEHOLDER_IMAGE)}

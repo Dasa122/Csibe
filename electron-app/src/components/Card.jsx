@@ -28,7 +28,8 @@ const Card = memo(function Card({
     'card',
     !card.enabled && 'card--disabled',
     isSelected && 'card--selected',
-    (card.easyImage || card.image) && 'card--has-image',
+    (card.easyImage || card.image) && 'card--has-easy',
+    card.hardImage && 'card--has-hard',
     (card.easyAudio || card.audio || card.hardAudio) && 'card--has-audio',
   ].filter(Boolean).join(' ');
 

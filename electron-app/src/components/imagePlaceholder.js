@@ -21,3 +21,22 @@ const PLACEHOLDER_SVG = encodeURIComponent(`
 </svg>`);
 
 export const PLACEHOLDER_IMAGE = `data:image/svg+xml;charset=UTF-8,${PLACEHOLDER_SVG}`;
+
+/**
+ * Resolve a media path for use in <img src> or <audio src>.
+ * - http(s):// and data: URLs pass through unchanged
+ * - Absolute filesystem paths (/home/...) get local-file:// prefix
+ * - Relative paths pass through unchanged
+ * - Handles spaces, accented chars (ő, ű, á, é, ó, etc.)
+ */
+export function resolveMediaPath(rawPath) {
+  if (!rawPath) return '';
+  // Already a URL with protocol — pass through
+  if (/^(https?:|data:|file:|blob:|local-file:)/i.test(rawPath)) return rawPath;
+  // Absolute Unix path — convert to local-file:// URL
+  if (rawPath.startsWith('/')) {
+    return `local-file://${rawPath}`;
+  }
+  // Relative path — pass through
+  return rawPath;
+}
