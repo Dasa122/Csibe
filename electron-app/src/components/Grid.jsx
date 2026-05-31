@@ -11,6 +11,9 @@ const Grid = memo(function Grid({
   onCardRightClick,
 }) {
   const getCard = (r, c) => cards.find(card => card.row === r && card.col === c);
+  const click = onCardClick || (() => {});
+  const dblClick = onCardDoubleClick || (() => {});
+  const rightClick = onCardRightClick || (() => {});
 
   return (
     <div className="grid" role="grid" aria-label="7×7 game board">
@@ -26,9 +29,9 @@ const Grid = memo(function Grid({
                 card={card}
                 category={cat}
                 isSelected={isSelected}
-                onClick={() => onCardClick(card)}
-                onDoubleClick={() => onCardDoubleClick(card)}
-                onContextMenu={(e) => { e.preventDefault(); onCardRightClick(card); }}
+                onClick={() => click(card)}
+                onDoubleClick={() => dblClick(card)}
+                onContextMenu={(e) => { e.preventDefault(); rightClick(card); }}
               />
             );
           })}

@@ -21,7 +21,7 @@ const Card = memo(function Card({
     setRipple({ x: x - size / 2, y: y - size / 2, size });
     setTimeout(() => setRipple(null), 700);
 
-    onClick();
+    if (onClick) onClick();
   }, [card.enabled, onClick]);
 
   const classNames = [
@@ -30,7 +30,8 @@ const Card = memo(function Card({
     isSelected && 'card--selected',
     (card.easyImage || card.image) && 'card--has-easy',
     card.hardImage && 'card--has-hard',
-    (card.easyAudio || card.audio || card.hardAudio) && 'card--has-audio',
+    (card.easyAudio || card.audio) && 'card--has-easy-audio',
+    card.hardAudio && 'card--has-hard-audio',
   ].filter(Boolean).join(' ');
 
   return (

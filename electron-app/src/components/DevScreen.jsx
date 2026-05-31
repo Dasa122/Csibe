@@ -48,44 +48,54 @@ export default function DevScreen() {
     }
   }, []);
 
-  const stopAudioRef = useCallback(() => {
-    playIdRef.current++; // abort any pending play operation
+  // Immediate stop — no fade, just cut and reset
+  const stopAudioImmediate = useCallback(() => {
+    playIdRef.current++; // abort any pending play/fade
     cancelFade();
     const audio = audioRef.current;
-    if (!audio) return;
-    if (audio.paused) {
-      audio.volume = 1;
+    if (audio) {
+      audio.pause();
       audio.currentTime = 0;
-      return;
+      audio.volume = 1;
     }
-    // Fade out over 400ms then stop (caller handles state)
-    const startVol = audio.volume;
-    const startTime = performance.now();
-    const duration = 400;
-
-    const fadeOut = (now) => {
-      const elapsed = now - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      audio.volume = startVol * (1 - progress);
-      if (progress < 1) {
-        fadeRef.current = requestAnimationFrame(fadeOut);
-      } else {
-        audio.pause();
-        audio.currentTime = 0;
-        audio.volume = 1;
-        fadeRef.current = null;
-      }
-    };
-    fadeRef.current = requestAnimationFrame(fadeOut);
   }, [cancelFade]);
 
   // Stop audio + reset all audio state
   const stopAudioFull = useCallback(() => {
+    stopAudioImmediate();
     setAudioPlaying(false);
     setActiveAudioMode(null);
     setAudioSrc('');
-    stopAudioRef();
-  }, [stopAudioRef]);
+  }, [stopAudioImmediate]);
+
+  const notifyMainAudio = useCallback((mode, playing) => {
+    if (window.electronAPI) {
+      window.electronAPI.selectOnMain('audio-playing', { mode, playing });
+    }
+  }, []);
+
+  // Single toggle: if same mode is active → stop; otherwise → play that mode
+  const handleAudioToggle = useCallback((mode) => {
+    const audioPath = mode === 'hard'
+      ? selected?.hardAudio
+      : (selected?.easyAudio || selected?.audio);
+
+    if (!audioPath) return;
+
+    if (activeAudioMode === mode) {
+      // Same mode is active → stop
+      stopAudioFull();
+      notifyMainAudio(mode, false);
+    } else {
+      // Different mode (or nothing playing) → cut current, start new with fade-in
+      stopAudioImmediate();
+      setAudioPlaying(false);
+      setActiveAudioMode(mode);
+      setAudioSrc(audioPath);
+      setPlayTrigger(n => n + 1);
+      notifyMainAudio(mode, true);
+    }
+  }, [selected?.easyAudio, selected?.audio, selected?.hardAudio, activeAudioMode, stopAudioFull, stopAudioImmediate, notifyMainAudio]);
 
   useEffect(() => {
     if (!window.electronAPI) {
@@ -140,7 +150,7 @@ export default function DevScreen() {
       cleanup();
       clearTimeout(retry);
     };
-  }, [stopAudioRef]);
+  }, [stopAudioImmediate]);
 
   useEffect(() => {
     stopAudioFull();
@@ -201,7 +211,7 @@ export default function DevScreen() {
         categoryName: categories[card.col]?.name || '',
       });
     }
-  }, [categories, stopAudioRef]);
+  }, [categories, stopAudioFull]);
 
   const handleOpenEditor = useCallback(() => {
     if (!selected) return;
@@ -225,50 +235,6 @@ export default function DevScreen() {
       window.electronAPI.selectOnMain('request-undo', {});
     }
   }, []);
-
-  const notifyMainAudio = useCallback((mode, playing) => {
-    if (window.electronAPI) {
-      window.electronAPI.selectOnMain('audio-playing', { mode, playing });
-    }
-  }, []);
-
-  const playEasyAudio = useCallback((e) => {
-    e.stopPropagation();
-    const audioPath = selected?.easyAudio || selected?.audio;
-    if (!audioPath) return;
-    if (activeAudioMode === 'easy' && audioPlaying) {
-      // Stop: update state immediately, fade-out runs async (keep audioSrc so it doesn't cut)
-      setAudioPlaying(false);
-      setActiveAudioMode(null);
-      stopAudioRef();
-      notifyMainAudio('easy', false);
-    } else {
-      stopAudioRef();
-      setAudioSrc(audioPath);
-      setPlayTrigger(n => n + 1);
-      setActiveAudioMode('easy');
-      notifyMainAudio('easy', true);
-    }
-  }, [selected?.easyAudio, selected?.audio, activeAudioMode, audioPlaying, stopAudioRef, notifyMainAudio]);
-
-  const playHardAudio = useCallback((e) => {
-    e.stopPropagation();
-    const audioPath = selected?.hardAudio;
-    if (!audioPath) return;
-    if (activeAudioMode === 'hard' && audioPlaying) {
-      // Stop: update state immediately, fade-out runs async (keep audioSrc so it doesn't cut)
-      setAudioPlaying(false);
-      setActiveAudioMode(null);
-      stopAudioRef();
-      notifyMainAudio('hard', false);
-    } else {
-      stopAudioRef();
-      setAudioSrc(audioPath);
-      setPlayTrigger(n => n + 1);
-      setActiveAudioMode('hard');
-      notifyMainAudio('hard', true);
-    }
-  }, [selected?.hardAudio, activeAudioMode, audioPlaying, stopAudioRef, notifyMainAudio]);
 
   const handleAudioEnded = useCallback(() => {
     setAudioPlaying(false);
@@ -306,7 +272,7 @@ export default function DevScreen() {
       });
     }
     log('action:show-easy', { image, audio });
-  }, [selected, showMode, stopAudioRef, categories]);
+  }, [selected, showMode, stopAudioFull, categories]);
 
   const handleShowHard = useCallback(() => {
     if (!selected) return;
@@ -331,7 +297,7 @@ export default function DevScreen() {
       });
     }
     log('action:show-hard', { image, audio });
-  }, [selected, showMode, stopAudioRef, categories]);
+  }, [selected, showMode, stopAudioFull, categories]);
 
   const handleRevealAnswer = useCallback(() => {
     log('action:reveal-answer', selected ? { row: selected.row, col: selected.col, label: selected.label } : null);
@@ -349,7 +315,7 @@ export default function DevScreen() {
         label: selected.label,
       });
     }
-  }, [selected, categories, showMode, stopAudioRef, handleHideMedia]);
+  }, [selected, categories, showMode, stopAudioFull, handleHideMedia]);
 
   const handleHideAnswer = useCallback(() => {
     log('action:hide-answer', selected ? { row: selected.row, col: selected.col, label: selected.label } : null);
@@ -367,7 +333,30 @@ export default function DevScreen() {
     }
     setShowAnswer(false);
     stopAudioFull();
+    // Unselect after marking done
+    setSelected(null);
+    if (window.electronAPI) {
+      window.electronAPI.selectOnMain('select-card', { card: null });
+    }
   }, [selected, stopAudioFull]);
+
+  const handleUnselect = useCallback(() => {
+    log('action:unselect');
+    setSelected(null);
+    setShowAnswer(false);
+    stopAudioFull();
+    if (window.electronAPI) {
+      window.electronAPI.selectOnMain('select-card', { card: null });
+    }
+  }, [stopAudioFull]);
+
+  const handleReenableCard = useCallback((card) => {
+    if (!card || card.enabled) return;
+    log('action:reenable', { row: card.row, col: card.col, label: card.label });
+    if (window.electronAPI) {
+      window.electronAPI.selectOnMain('enable-card', { card });
+    }
+  }, []);
 
   // ---- Controls ----
   const handleReset = useCallback(() => {
@@ -504,9 +493,9 @@ export default function DevScreen() {
                   return (
                     <button
                       key={ci}
-                      className={`ds-mini-cell ${!card.enabled ? 'ds-mini-cell--disabled' : ''} ${sel ? 'ds-mini-cell--selected' : ''} ${(card.easyImage || card.image) ? 'ds-mini-cell--has-easy' : ''} ${card.hardImage ? 'ds-mini-cell--has-hard' : ''} ${(card.easyAudio || card.audio || card.hardAudio) ? 'ds-mini-cell--has-audio' : ''}`}
+                      className={`ds-mini-cell ${!card.enabled ? 'ds-mini-cell--disabled' : ''} ${sel ? 'ds-mini-cell--selected' : ''} ${(card.easyImage || card.image) ? 'ds-mini-cell--has-easy' : ''} ${card.hardImage ? 'ds-mini-cell--has-hard' : ''} ${(card.easyAudio || card.audio) ? 'ds-mini-cell--has-easy-audio' : ''} ${card.hardAudio ? 'ds-mini-cell--has-hard-audio' : ''}`}
                       onClick={() => card.enabled && handleSelectCard(card)}
-                      disabled={!card.enabled}
+                      onDoubleClick={() => handleReenableCard(card)}
                       title={`${card.label} — ${cat.name}${(card.easyImage || card.image) ? ' 🖼' : ''}${card.hardImage ? ' 🖼🔥' : ''}${(card.easyAudio || card.audio) ? ' 🎵' : ''}${card.hardAudio ? ' 🎵🔥' : ''}`}
                     >
                       <span className="ds-mini-label">{card.label}</span>
@@ -590,6 +579,9 @@ export default function DevScreen() {
                 <button className="btn btn--sm btn--danger" onClick={handleMarkDone}>
                   ✅ Done
                 </button>
+                <button className="btn btn--sm btn--secondary" onClick={handleUnselect}>
+                  ❌ Unselect
+                </button>
               </div>
 
               {/* ── Show buttons: send image to main screen (hidden when no image) ── */}
@@ -619,18 +611,18 @@ export default function DevScreen() {
                 <div className="ds-detail-controls">
                   {selected.hardAudio && (
                     <button
-                      className={`btn btn--sm ${activeAudioMode === 'hard' && audioPlaying ? 'btn--danger' : 'btn--primary'}`}
-                      onClick={playHardAudio}
+                      className={`btn btn--sm ${activeAudioMode === 'hard' ? 'btn--danger' : 'btn--primary'}`}
+                      onClick={(e) => { e.stopPropagation(); handleAudioToggle('hard'); }}
                     >
-                      {activeAudioMode === 'hard' && audioPlaying ? '⏹ Stop Hard' : '🎵 Play Hard'}
+                      {activeAudioMode === 'hard' ? '⏹ Stop Hard' : '🎵 Play Hard'}
                     </button>
                   )}
                   {(selected.easyAudio || selected.audio) && (
                     <button
-                      className={`btn btn--sm ${activeAudioMode === 'easy' && audioPlaying ? 'btn--danger' : 'btn--primary'}`}
-                      onClick={playEasyAudio}
+                      className={`btn btn--sm ${activeAudioMode === 'easy' ? 'btn--danger' : 'btn--primary'}`}
+                      onClick={(e) => { e.stopPropagation(); handleAudioToggle('easy'); }}
                     >
-                      {activeAudioMode === 'easy' && audioPlaying ? '⏹ Stop Easy' : '🎵 Play Easy'}
+                      {activeAudioMode === 'easy' ? '⏹ Stop Easy' : '🎵 Play Easy'}
                     </button>
                   )}
                 </div>

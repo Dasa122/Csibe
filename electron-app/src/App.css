@@ -322,8 +322,16 @@ body::after {
 }
 
 /* Audio indicator — blue bottom bar */
-.card--has-audio {
-  box-shadow: 0 2px 12px rgba(56, 189, 248, 0.10), 0 0 1px rgba(255,255,255,0.1) inset, inset 0 -3px 0 rgba(56, 189, 248, 0.4);
+.card--has-easy-audio {
+  box-shadow: 0 2px 12px rgba(74, 222, 128, 0.08), 0 0 1px rgba(255,255,255,0.1) inset, inset 0 -3px 0 rgba(74, 222, 128, 0.5);
+}
+.card--has-hard-audio {
+  box-shadow: 0 2px 12px rgba(248, 113, 113, 0.08), 0 0 1px rgba(255,255,255,0.1) inset, inset 0 -3px 0 rgba(248, 113, 113, 0.5);
+}
+/* Both easy + hard audio — split bottom bar green/red */
+.card--has-easy-audio.card--has-hard-audio {
+  box-shadow: 0 2px 12px rgba(74, 222, 128, 0.06), 0 0 1px rgba(255,255,255,0.1) inset,
+              inset 0 -3px 0 rgba(74, 222, 128, 0.5), inset 0 -6px 0 rgba(248, 113, 113, 0.5);
 }
 
 /* Easy + Hard — green top + red bottom */
@@ -332,16 +340,40 @@ body::after {
               inset 0 3px 0 rgba(74, 222, 128, 0.4), inset 0 -3px 0 rgba(248, 113, 113, 0.4);
 }
 
-/* Easy + Audio — green top + blue bottom */
-.card--has-easy.card--has-audio {
-  box-shadow: 0 2px 12px rgba(74, 222, 128, 0.10), 0 0 1px rgba(255,255,255,0.1) inset,
-              inset 0 3px 0 rgba(74, 222, 128, 0.4), inset 0 -3px 0 rgba(56, 189, 248, 0.4);
+/* Easy + EasyAudio — green top + green bottom */
+.card--has-easy.card--has-easy-audio {
+  box-shadow: 0 2px 12px rgba(74, 222, 128, 0.12), 0 0 1px rgba(255,255,255,0.1) inset,
+              inset 0 3px 0 rgba(74, 222, 128, 0.4), inset 0 -3px 0 rgba(74, 222, 128, 0.5);
 }
 
-/* Hard + Audio — red top + blue bottom */
-.card--has-hard.card--has-audio {
+/* Easy + HardAudio — green top + red bottom */
+.card--has-easy.card--has-hard-audio {
+  box-shadow: 0 2px 12px rgba(74, 222, 128, 0.10), 0 0 1px rgba(255,255,255,0.1) inset,
+              inset 0 3px 0 rgba(74, 222, 128, 0.4), inset 0 -3px 0 rgba(248, 113, 113, 0.5);
+}
+
+/* Hard + EasyAudio — red top/bottom + green bottom (uses stacked insets) */
+.card--has-hard.card--has-easy-audio {
   box-shadow: 0 2px 12px rgba(248, 113, 113, 0.10), 0 0 1px rgba(255,255,255,0.1) inset,
-              inset 0 3px 0 rgba(248, 113, 113, 0.4), inset 0 -3px 0 rgba(56, 189, 248, 0.4);
+              inset 0 3px 0 rgba(248, 113, 113, 0.4), inset 0 -3px 0 rgba(248, 113, 113, 0.4), inset 0 -6px 0 rgba(74, 222, 128, 0.5);
+}
+
+/* Hard + HardAudio — red top + double red bottom */
+.card--has-hard.card--has-hard-audio {
+  box-shadow: 0 2px 12px rgba(248, 113, 113, 0.14), 0 0 1px rgba(255,255,255,0.1) inset,
+              inset 0 3px 0 rgba(248, 113, 113, 0.4), inset 0 -3px 0 rgba(248, 113, 113, 0.4), inset 0 -6px 0 rgba(248, 113, 113, 0.5);
+}
+
+/* Easy + EasyAudio + HardAudio — green top, green+red bottom */
+.card--has-easy.card--has-easy-audio.card--has-hard-audio {
+  box-shadow: 0 2px 12px rgba(74, 222, 128, 0.10), 0 0 1px rgba(255,255,255,0.1) inset,
+              inset 0 3px 0 rgba(74, 222, 128, 0.4), inset 0 -3px 0 rgba(74, 222, 128, 0.5), inset 0 -6px 0 rgba(248, 113, 113, 0.5);
+}
+
+/* Hard + EasyAudio + HardAudio — red top, red+green+red bottom */
+.card--has-hard.card--has-easy-audio.card--has-hard-audio {
+  box-shadow: 0 2px 12px rgba(248, 113, 113, 0.10), 0 0 1px rgba(255,255,255,0.1) inset,
+              inset 0 3px 0 rgba(248, 113, 113, 0.4), inset 0 -3px 0 rgba(248, 113, 113, 0.4), inset 0 -6px 0 rgba(74, 222, 128, 0.5), inset 0 -9px 0 rgba(248, 113, 113, 0.5);
 }
 
 .card-label {
@@ -1823,20 +1855,44 @@ input, textarea, .modal, .modal * {
   box-shadow: inset 0 3px 0 rgba(248, 113, 113, 0.6);
 }
 
-.ds-mini-cell--has-audio {
-  box-shadow: inset 0 -3px 0 rgba(56, 189, 248, 0.5);
+.ds-mini-cell--has-easy-audio {
+  box-shadow: inset 0 -3px 0 rgba(74, 222, 128, 0.5);
+}
+
+.ds-mini-cell--has-hard-audio {
+  box-shadow: inset 0 -3px 0 rgba(248, 113, 113, 0.5);
+}
+
+.ds-mini-cell--has-easy-audio.ds-mini-cell--has-hard-audio {
+  box-shadow: inset 0 -3px 0 rgba(74, 222, 128, 0.5), inset 0 -6px 0 rgba(248, 113, 113, 0.5);
 }
 
 .ds-mini-cell--has-easy.ds-mini-cell--has-hard {
   box-shadow: inset 0 3px 0 rgba(74, 222, 128, 0.6), inset 0 -3px 0 rgba(248, 113, 113, 0.6);
 }
 
-.ds-mini-cell--has-easy.ds-mini-cell--has-audio {
-  box-shadow: inset 0 3px 0 rgba(74, 222, 128, 0.6), inset 0 -3px 0 rgba(56, 189, 248, 0.5);
+.ds-mini-cell--has-easy.ds-mini-cell--has-easy-audio {
+  box-shadow: inset 0 3px 0 rgba(74, 222, 128, 0.6), inset 0 -3px 0 rgba(74, 222, 128, 0.5);
 }
 
-.ds-mini-cell--has-hard.ds-mini-cell--has-audio {
-  box-shadow: inset 0 3px 0 rgba(248, 113, 113, 0.6), inset 0 -3px 0 rgba(56, 189, 248, 0.5);
+.ds-mini-cell--has-easy.ds-mini-cell--has-hard-audio {
+  box-shadow: inset 0 3px 0 rgba(74, 222, 128, 0.6), inset 0 -3px 0 rgba(248, 113, 113, 0.5);
+}
+
+.ds-mini-cell--has-hard.ds-mini-cell--has-easy-audio {
+  box-shadow: inset 0 3px 0 rgba(248, 113, 113, 0.6), inset 0 -3px 0 rgba(248, 113, 113, 0.6), inset 0 -6px 0 rgba(74, 222, 128, 0.5);
+}
+
+.ds-mini-cell--has-hard.ds-mini-cell--has-hard-audio {
+  box-shadow: inset 0 3px 0 rgba(248, 113, 113, 0.6), inset 0 -3px 0 rgba(248, 113, 113, 0.6), inset 0 -6px 0 rgba(248, 113, 113, 0.5);
+}
+
+.ds-mini-cell--has-easy.ds-mini-cell--has-easy-audio.ds-mini-cell--has-hard-audio {
+  box-shadow: inset 0 3px 0 rgba(74, 222, 128, 0.6), inset 0 -3px 0 rgba(74, 222, 128, 0.5), inset 0 -6px 0 rgba(248, 113, 113, 0.5);
+}
+
+.ds-mini-cell--has-hard.ds-mini-cell--has-easy-audio.ds-mini-cell--has-hard-audio {
+  box-shadow: inset 0 3px 0 rgba(248, 113, 113, 0.6), inset 0 -3px 0 rgba(248, 113, 113, 0.6), inset 0 -6px 0 rgba(74, 222, 128, 0.5), inset 0 -9px 0 rgba(248, 113, 113, 0.5);
 }
 
 .ds-mini-label {

@@ -280,6 +280,7 @@ export default function App() {
           break;
         case 'select-card': {
           const card = data.card;
+          setAnswerOverlay(null);
           if (!card) {
             setSelectedCard(null);
             setFrozenCard(null);
@@ -359,6 +360,19 @@ export default function App() {
             setRoundComplete(true);
             setLastClicked('Round complete');
           }
+          break;
+        }
+        case 'enable-card': {
+          const c = data.card;
+          if (!c) return;
+          log('ipc:enable-card', { row: c.row, col: c.col, label: c.label });
+          setCardsData(cd => ({ ...cd, cards: cd.cards.map(cd2 =>
+            cd2.row === c.row && cd2.col === c.col
+              ? { ...cd2, enabled: true }
+              : cd2
+          ) }));
+          setFrozenCard(prev => prev?.row === c.row && prev?.col === c.col ? null : prev);
+          setRoundComplete(false);
           break;
         }
         case 'save-card': {
@@ -456,6 +470,7 @@ export default function App() {
     if (frozenCardRef.current) return;
     if (!card.enabled) return;
     log('card:click', { row: card.row, col: card.col, label: card.label });
+    setAnswerOverlay(null);
     setSelectedCard(card);
     const catName = cardsData.categories[card.col]?.name || '';
     setLastClicked(`${card.label} — ${catName}`);
@@ -550,13 +565,6 @@ export default function App() {
         ))}
       </div>
 
-      {frozenCard && (
-        <div className="main-freeze-banner" role="status" aria-live="polite">
-          <span className="main-freeze-banner__dot" />
-          Frozen on {frozenCard.label} — use the dev screen to continue.
-        </div>
-      )}
-
       {roundComplete && (
         <div className="main-freeze-banner main-freeze-banner--complete" role="status" aria-live="polite">
           <span className="main-freeze-banner__dot" />
@@ -605,9 +613,6 @@ export default function App() {
         categories={cardsData.categories}
         points={cardsData.points}
         selectedCard={selectedCard}
-        onCardClick={handleCardClick}
-        onCardDoubleClick={handleCardDoubleClick}
-        onCardRightClick={handleCardRightClick}
       />
 
 
