@@ -406,7 +406,8 @@ export default function DevScreen() {
               <div className="ds-mini-cell ds-mini-cell--row-label" />
               {categories.map((cat, ci) => (
                 <div key={ci} className="ds-mini-cell ds-mini-cell--header" title={cat.name}>
-                  {cat.icon}
+                  <span className="ds-mini-header-icon">{cat.icon}</span>
+                  <span className="ds-mini-header-name">{cat.name}</span>
                 </div>
               ))}
             </div>
@@ -485,6 +486,7 @@ export default function DevScreen() {
               </div>
 
               <div className="ds-detail-answer">
+                <span className="ds-detail-image-label ds-detail-image-label--answer">💡 Answer</span>
                 <div className="ds-detail-answer-text">{selected.answer || '(No answer)'}</div>
                 {selected.answerImage && (
                   <img
