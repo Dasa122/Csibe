@@ -13,6 +13,7 @@ function saveActivePresetName(name) { localStorage.setItem(ACTIVE_PRESET_KEY, na
 const TABS = [
   { id: 'general', label: '📋 General', icon: '📋' },
   { id: 'categories', label: '🏷 Categories', icon: '🏷' },
+  { id: 'teams', label: '👥 Teams', icon: '👥' },
   { id: 'presets', label: '💾 Presets', icon: '💾' },
   { id: 'screens', label: '🖥 Screens', icon: '🖥' },
 ];
@@ -22,6 +23,7 @@ export default function Preferences({
   categories,
   points,
   cards,
+  teams,
   activeScreen,
   subScreen,
   onSave,
@@ -48,6 +50,9 @@ export default function Preferences({
   const [screensLoading, setScreensLoading] = useState(true);
   const [localActive, setLocalActive] = useState(activeScreen);
   const [localSub, setLocalSub] = useState(subScreen);
+
+  // ── Teams tab state ──
+  const [localTeams, setLocalTeams] = useState(teams ? teams.map(t => ({ ...t })) : []);
 
   // Load screens on mount
   React.useEffect(() => {
@@ -83,6 +88,19 @@ export default function Preferences({
   const handleCatMoveDown = (idx) => {
     if (idx === cats.length - 1) return;
     setCats(prev => { const n = [...prev]; [n[idx], n[idx+1]] = [n[idx+1], n[idx]]; return n; });
+  };
+
+  // ── Team helpers ──
+  const handleTeamNameChange = (idx, name) => {
+    setLocalTeams(prev => prev.map((t, i) => i === idx ? { ...t, name } : t));
+  };
+  const handleTeamMoveUp = (idx) => {
+    if (idx === 0) return;
+    setLocalTeams(prev => { const n = [...prev]; [n[idx-1], n[idx]] = [n[idx], n[idx-1]]; return n; });
+  };
+  const handleTeamMoveDown = (idx) => {
+    if (idx === localTeams.length - 1) return;
+    setLocalTeams(prev => { const n = [...prev]; [n[idx], n[idx+1]] = [n[idx+1], n[idx]]; return n; });
   };
 
   // ── Preset helpers ──
@@ -204,6 +222,7 @@ export default function Preferences({
       appTitle: title,
       categories: cats,
       cards: newCards,
+      teams: localTeams,
       activeScreen: localActive,
       subScreen: localSub,
     });
@@ -267,6 +286,32 @@ export default function Preferences({
                   ))}
                 </div>
                 <button className="btn btn--secondary btn--sm cat-editor-add" onClick={handleCatAdd}>＋ Add Column</button>
+              </div>
+            )}
+
+            {/* TEAMS */}
+            {tab === 'teams' && (
+              <div className="prefs-section">
+                <h3>👥 Teams</h3>
+                <p className="cat-editor-hint">Rename and reorder teams. Team scores are preserved when reordering.</p>
+                <div className="cat-editor-list">
+                  {localTeams.map((team, idx) => (
+                    <div key={team.id} className="cat-editor-row">
+                      <div className="cat-editor-col-num">{idx + 1}</div>
+                      <input
+                        className="cat-editor-input cat-editor-input--name"
+                        type="text"
+                        value={team.name}
+                        onChange={e => handleTeamNameChange(idx, e.target.value)}
+                        placeholder="Team name"
+                      />
+                      <div className="cat-editor-actions">
+                        <button className="cat-editor-btn" onClick={() => handleTeamMoveUp(idx)} disabled={idx === 0}>▲</button>
+                        <button className="cat-editor-btn" onClick={() => handleTeamMoveDown(idx)} disabled={idx === localTeams.length - 1}>▼</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 

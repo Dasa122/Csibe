@@ -7,6 +7,32 @@ import { resolveMediaPath } from './components/imagePlaceholder';
 
 const STORAGE_KEY = 'mindent-vagy-semmit-cards';
 const TITLE_KEY = 'mindent-vagy-semmit-title';
+const TEAMS_KEY = 'mindent-vagy-semmit-teams';
+const ACTIVE_TEAM_KEY = 'mindent-vagy-semmit-active-team';
+
+const DEFAULT_TEAMS = [
+  { id: '9kny', name: '9kny', score: 0 },
+  { id: '9b', name: '9b', score: 0 },
+  { id: '9c', name: '9c', score: 0 },
+  { id: '9d', name: '9d', score: 0 },
+  { id: '9e', name: '9e', score: 0 },
+];
+
+function loadTeams() {
+  try {
+    const saved = localStorage.getItem(TEAMS_KEY);
+    if (saved) return JSON.parse(saved);
+  } catch (e) { /* ignore */ }
+  return DEFAULT_TEAMS;
+}
+
+function saveTeams(teams) { localStorage.setItem(TEAMS_KEY, JSON.stringify(teams)); }
+
+function loadActiveTeam() {
+  return localStorage.getItem(ACTIVE_TEAM_KEY) || '9kny';
+}
+
+function saveActiveTeam(id) { localStorage.setItem(ACTIVE_TEAM_KEY, id); }
 
 function loadTitle() {
   return localStorage.getItem(TITLE_KEY) || 'Mindent vagy semmit!';
@@ -88,6 +114,8 @@ export default function App() {
   }, []); // eslint-disable-line
   const [devScreenOpen, setDevScreenOpen] = useState(false);
   const [activePresetName, setActivePresetName] = useState(loadActivePresetName);
+  const [teams, setTeams] = useState(loadTeams);
+  const [activeTeamId, setActiveTeamId] = useState(loadActiveTeam);
 
   // Auto-open dev screen on startup
   useEffect(() => {
@@ -127,6 +155,8 @@ export default function App() {
       activeScreen: activeScreen,
       subScreen: subScreen,
       appTitle: appTitle,
+      teams: teams,
+      activeTeamId: activeTeamId,
     });
 
     window.electronAPI.sendToDevScreen('select-card', {
@@ -138,7 +168,7 @@ export default function App() {
       undoDepth: undoStackRef.current.length,
       frozenCard: frozenCardRef.current ? { row: frozenCardRef.current.row, col: frozenCardRef.current.col, label: frozenCardRef.current.label } : null,
     });
-  }, [cardsData.cards, cardsData.categories, cardsData.points, lastClicked, log]);
+  }, [cardsData.cards, cardsData.categories, cardsData.points, lastClicked, log, teams, activeTeamId]);
 
   const stopAudio = useCallback(() => {
     cancelFade();
@@ -213,10 +243,51 @@ export default function App() {
     setUndoStack(prev => [...prev.slice(-19), action]);
   }, []);
 
+  // ── Team score helpers ──
+  const addPointsToActiveTeam = useCallback((points) => {
+    setTeams(prev => {
+      const next = prev.map(t =>
+        t.id === activeTeamId ? { ...t, score: t.score + points } : t
+      );
+      saveTeams(next);
+      return next;
+    });
+  }, [activeTeamId]);
+
+  const adjustTeamScore = useCallback((teamId, delta) => {
+    setTeams(prev => {
+      const next = prev.map(t =>
+        t.id === teamId ? { ...t, score: t.score + delta } : t
+      );
+      saveTeams(next);
+      return next;
+    });
+  }, []);
+
+  const selectTeam = useCallback((teamId) => {
+    setActiveTeamId(teamId);
+    saveActiveTeam(teamId);
+  }, []);
+
+  const renameTeam = useCallback((teamId, newName) => {
+    setTeams(prev => {
+      const next = prev.map(t =>
+        t.id === teamId ? { ...t, name: newName } : t
+      );
+      saveTeams(next);
+      return next;
+    });
+  }, []);
+
   // Persist card changes
   useEffect(() => {
     saveCards(cardsData);
   }, [cardsData]);
+
+  // Persist team changes
+  useEffect(() => {
+    saveTeams(teams);
+  }, [teams]);
 
   useEffect(() => {
     syncDevScreen();
@@ -237,6 +308,19 @@ export default function App() {
       ) }));
       setFrozenCard(prev => prev?.row === action.row && prev?.col === action.col ? null : prev);
       setRoundComplete(false);
+      // Subtract points on undo
+      const gotAnswer = action.gotAnswer !== false;
+      if (gotAnswer) {
+        let pts;
+        if (action.customPoints !== undefined && action.customPoints !== null) {
+          pts = Number(action.customPoints);
+        } else {
+          const basePts = cardsData.points[action.row] || 0;
+          pts = Math.round(basePts * (action.mode === 'hard' ? 1 : 0.5));
+        }
+        const teamId = action.teamId || activeTeamId;
+        adjustTeamScore(teamId, -pts);
+      }
     } else if (action.type === 'select') {
       log('undo:select', { row: action.row, col: action.col });
       setSelectedCard(null);
@@ -249,7 +333,7 @@ export default function App() {
       ) }));
       setSelectedCard(prev => prev?.row === previous.row && prev?.col === previous.col ? previous : prev);
     }
-  }, [log]);
+  }, [log, cardsData.points, activeTeamId, adjustTeamScore]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -333,11 +417,13 @@ export default function App() {
         case 'disable-card': {
           const c = data.card;
           if (!c) return;
-          pushUndo({ type: 'disable', row: c.row, col: c.col });
-          log('ipc:disable-card', { row: c.row, col: c.col, label: c.label });
+          const gotAnswer = data.gotAnswer !== false;
+          const mode = data.mode || 'easy';
+          const teamId = data.teamId || activeTeamId; // support stealing
+          const customPoints = data.customPoints;
+          pushUndo({ type: 'disable', row: c.row, col: c.col, gotAnswer, mode, teamId, customPoints });
+          log('ipc:disable-card', { row: c.row, col: c.col, label: c.label, gotAnswer, mode, teamId, customPoints });
 
-          // Compute the next state synchronously – cardsData is fresh because
-          // this IPC listener is re-registered whenever cardsData changes.
           const nextCards = cardsData.cards.map(cd =>
             cd.row === c.row && cd.col === c.col ? { ...cd, enabled: false } : cd
           );
@@ -351,6 +437,20 @@ export default function App() {
               ? { ...prev, enabled: false }
               : prev
           );
+
+          // Award points
+          if (gotAnswer) {
+            let pts;
+            if (customPoints !== undefined && customPoints !== null) {
+              pts = Number(customPoints);
+            } else {
+              const basePts = cardsData.points[c.row] || 0;
+              pts = Math.round(basePts * (mode === 'hard' ? 1 : 0.5));
+            }
+            if (teamId) {
+              adjustTeamScore(teamId, pts);
+            }
+          }
 
           if (stillAlive) {
             setFrozenCard({ ...c, enabled: false });
@@ -432,7 +532,7 @@ export default function App() {
           break;
         }
         case 'apply-preferences': {
-          const { appTitle: newTitle, categories: newCats, cards: newCards, activeScreen: newActive, subScreen: newSub } = data;
+          const { appTitle: newTitle, categories: newCats, cards: newCards, teams: newTeams, activeScreen: newActive, subScreen: newSub } = data;
           if (newTitle !== undefined) {
             setAppTitle(newTitle);
             saveTitle(newTitle);
@@ -443,6 +543,10 @@ export default function App() {
               categories: newCats || prev.categories,
               cards: newCards || prev.cards,
             }));
+          }
+          if (newTeams) {
+            setTeams(newTeams);
+            saveTeams(newTeams);
           }
           if (newActive !== undefined) {
             setActiveScreen(newActive);
@@ -459,12 +563,47 @@ export default function App() {
           log('ipc:apply-preferences', { title: newTitle, cats: newCats?.length, cards: newCards?.length });
           break;
         }
+        case 'set-active-team': {
+          const { teamId } = data;
+          selectTeam(teamId);
+          log('ipc:set-active-team', { teamId });
+          break;
+        }
+        case 'rename-team': {
+          const { teamId, name } = data;
+          renameTeam(teamId, name);
+          log('ipc:rename-team', { teamId, name });
+          break;
+        }
+        case 'reorder-teams': {
+          const { orderedIds } = data;
+          setTeams(prev => {
+            const next = orderedIds.map(id => prev.find(t => t.id === id)).filter(Boolean);
+            saveTeams(next);
+            return next;
+          });
+          log('ipc:reorder-teams', { orderedIds });
+          break;
+        }
+        case 'adjust-team-score': {
+          const { teamId, delta } = data;
+          adjustTeamScore(teamId, delta);
+          log('ipc:adjust-team-score', { teamId, delta });
+          break;
+        }
+        case 'reset-team-scores': {
+          const resetTeams = DEFAULT_TEAMS.map(t => ({ ...t, score: 0 }));
+          setTeams(resetTeams);
+          saveTeams(resetTeams);
+          log('ipc:reset-team-scores');
+          break;
+        }
         default:
           break;
       }
     });
     return cleanup;
-  }, [cardsData, handleUndo, pushUndo, syncDevScreen]);
+  }, [cardsData, handleUndo, pushUndo, syncDevScreen, selectTeam, adjustTeamScore, renameTeam]);
 
   const handleCardClick = useCallback((card) => {
     if (frozenCardRef.current) return;
@@ -526,7 +665,10 @@ export default function App() {
       if (prev?.row === card.row && prev?.col === card.col) return null;
       return prev;
     });
-  }, [pushUndo]);
+    // Award points to active team
+    const pts = cardsData.points[card.row] || 0;
+    addPointsToActiveTeam(pts);
+  }, [pushUndo, cardsData.points, addPointsToActiveTeam]);
 
   const handleReset = useCallback(() => {
     log('action:reset');
@@ -540,6 +682,10 @@ export default function App() {
     setAudioIndicator(null);
     setAnswerOverlay(null);
     stopAudio();
+    // Reset team scores
+    const resetTeams = DEFAULT_TEAMS.map(t => ({ ...t, score: 0 }));
+    setTeams(resetTeams);
+    saveTeams(resetTeams);
   }, []);
 
   // Check dev screen status on mount
@@ -568,7 +714,7 @@ export default function App() {
       {roundComplete && (
         <div className="main-freeze-banner main-freeze-banner--complete" role="status" aria-live="polite">
           <span className="main-freeze-banner__dot" />
-          Round complete. You can reset, load a preset, or start a new round.
+          A kör véget ért! Új kör indításához használd a Reset gombot.
         </div>
       )}
 
@@ -576,7 +722,7 @@ export default function App() {
       {audioIndicator?.visible && (
         <div className={`audio-indicator ${audioIndicator.mode === 'hard' ? 'audio-indicator--hard' : 'audio-indicator--easy'}`} role="status" aria-live="polite">
           <span className="audio-indicator__icon">🎵</span>
-          <span className="audio-indicator__label">{audioIndicator.mode === 'hard' ? 'HARD' : 'EASY'}</span>
+          <span className="audio-indicator__label">{audioIndicator.mode === 'hard' ? 'NEHÉZ' : 'KÖNNYŰ'}</span>
           <span className="audio-indicator__bars">
             <span className="audio-indicator__bar" />
             <span className="audio-indicator__bar" />
@@ -590,7 +736,7 @@ export default function App() {
       {answerOverlay && (
         <div className="answer-overlay" onClick={() => setAnswerOverlay(null)}>
           <div className="answer-overlay__content" onClick={e => e.stopPropagation()}>
-            <div className="answer-overlay__badge">💡 Answer</div>
+            <div className="answer-overlay__badge">💡 Válasz</div>
             <div className="answer-overlay__text">{answerOverlay.text}</div>
             {answerOverlay.image && (
               <img
@@ -602,7 +748,7 @@ export default function App() {
             )}
             <div className="answer-overlay__meta">{answerOverlay.label} pont — {answerOverlay.categoryName}</div>
             <button className="btn btn--secondary btn--large" onClick={() => setAnswerOverlay(null)}>
-              ✕ Close
+              ✕ Bezárás
             </button>
           </div>
         </div>
@@ -622,7 +768,7 @@ export default function App() {
         <div className="subpage-overlay" onClick={() => { stopAudio(); setShowMedia(null); }}>
           <div className="subpage-content" onClick={e => e.stopPropagation()}>
             <div className={`ds-show-badge ${showMedia.mode === 'hard' ? 'ds-show-badge--hard' : 'ds-show-badge--easy'}`} style={{ position: 'static', fontSize: '2vmin', padding: '0.6vmin 1.6vmin' }}>
-              {showMedia.mode === 'hard' ? '🔴 HARD (1×)' : '🟢 EASY (0.5×)'}
+              {showMedia.mode === 'hard' ? '🔴 NEHÉZ (1×)' : '🟢 KÖNNYŰ (0.5×)'}
             </div>
 
             {showMedia.image ? (
@@ -635,13 +781,13 @@ export default function App() {
             ) : showMedia.audio ? (
               <div className="subpage-audio-only">
                 <div className="subpage-audio-icon">🎵</div>
-                <p className="subpage-audio-label">{showMedia.mode === 'hard' ? '🔴 HARD' : '🟢 EASY'} Sound</p>
+                <p className="subpage-audio-label">{showMedia.mode === 'hard' ? '🔴 NEHÉZ' : '🟢 KÖNNYŰ'} Hang</p>
                 <p className="subpage-meta">{showMedia.card.label} pont — {showMedia.categoryName}</p>
               </div>
             ) : (
               <div className="subpage-no-image">
                 <div className="subpage-placeholder-icon">🖼️</div>
-                <p>No media for {showMedia.mode} mode</p>
+                <p>Nincs média a(z) {showMedia.mode === 'hard' ? 'nehéz' : 'könnyű'} módhoz</p>
                 <p className="subpage-meta">{showMedia.card.label} pont — {showMedia.categoryName}</p>
               </div>
             )}
@@ -649,20 +795,20 @@ export default function App() {
             {showMedia.audio && (
               <div className="subpage-actions">
                 {!showMedia.image && (
-                  <p className="subpage-audio-hint">Press play to start the sound</p>
+                  <p className="subpage-audio-hint">Kattints a lejátszáshoz</p>
                 )}
                 <button
                   className={`btn btn--large ${audioPlaying ? 'btn--danger' : 'btn--primary'}`}
                   onClick={toggleMainAudio}
                   style={!showMedia.image ? { fontSize: '3vmin', padding: '2vmin 5vmin' } : {}}
                 >
-                  {audioPlaying ? '⏹ Stop' : '🎵 Play Sound'}
+                  {audioPlaying ? '⏹ Leállítás' : '🎵 Lejátszás'}
                 </button>
               </div>
             )}
 
             <button className="btn btn--secondary btn--large" onClick={() => { stopAudio(); setShowMedia(null); }}>
-              ✕ Close
+              ✕ Bezárás
             </button>
 
             {showMedia.audio && (

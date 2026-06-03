@@ -2290,3 +2290,406 @@ input, textarea, .modal, .modal * {
   color: var(--text-dim);
   margin-bottom: 0.5vmin;
 }
+
+/* ============================================================
+   SCOREBOARD
+   ============================================================ */
+
+.scoreboard {
+  display: flex;
+  align-items: center;
+  gap: 0.6vmin;
+  flex-shrink: 0;
+}
+
+.scoreboard__team {
+  display: flex;
+  align-items: center;
+  gap: 0.5vmin;
+  padding: 0.4vmin 0.8vmin;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  user-select: none;
+  min-width: 0;
+}
+
+.scoreboard__team:hover {
+  background: var(--surface-hover);
+  border-color: var(--glass-border-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.scoreboard__team--active {
+  background: rgba(250, 204, 21, 0.15) !important;
+  border-color: rgba(250, 204, 21, 0.5) !important;
+  box-shadow: 0 0 16px var(--gold-glow), 0 0 0 1px rgba(250, 204, 21, 0.2) inset;
+}
+
+.scoreboard__team-name {
+  font-size: 1.3vmin;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.scoreboard__team--active .scoreboard__team-name {
+  color: var(--gold);
+}
+
+.scoreboard__team-score {
+  font-size: 1.6vmin;
+  font-weight: 900;
+  color: var(--text-bright);
+  min-width: 4vmin;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  padding: 0.15vmin 0.5vmin;
+}
+
+.scoreboard__team--active .scoreboard__team-score {
+  color: var(--gold);
+  background: rgba(250, 204, 21, 0.1);
+}
+
+.scoreboard__team-actions {
+  display: flex;
+  gap: 0.25vmin;
+}
+
+.scoreboard__btn {
+  font-family: var(--font);
+  font-size: 1vmin;
+  font-weight: 700;
+  width: 2.2vmin;
+  height: 2.2vmin;
+  border: 1px solid var(--glass-border);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  padding: 0;
+  line-height: 1;
+}
+
+.scoreboard__btn:hover {
+  background: var(--surface-hover);
+  border-color: var(--glass-border-hover);
+  transform: scale(1.15);
+}
+
+.scoreboard__btn--plus:hover {
+  background: rgba(74, 222, 128, 0.25);
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.scoreboard__btn--minus:hover {
+  background: rgba(248, 113, 113, 0.25);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* ── DevScreen scoreboard section ── */
+.ds-scoreboard-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6vmin;
+  padding: 0.8vmin 0;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.ds-scoreboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0.2vmin;
+}
+
+.ds-scoreboard-header span {
+  font-size: 1.2vmin;
+  font-weight: 700;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+/* ── Scoreboard inline rename input ── */
+.scoreboard__team--editing {
+  background: rgba(56, 189, 248, 0.1) !important;
+  border-color: rgba(56, 189, 248, 0.4) !important;
+}
+
+.scoreboard__team-input {
+  font-family: var(--font);
+  font-size: 1.3vmin;
+  font-weight: 800;
+  color: var(--text-bright);
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 0.2vmin 0.5vmin;
+  max-width: 8vmin;
+  outline: none;
+  text-align: center;
+  letter-spacing: 0.3px;
+}
+
+.scoreboard__team-input:focus {
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+
+/* ── Done confirmation modal ── */
+.ds-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ds-modal {
+  background: var(--bg-3);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: 3vmin 4vmin;
+  box-shadow: var(--shadow-modal);
+  max-width: 50vmin;
+  width: 90%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2vmin;
+  text-align: center;
+}
+
+.ds-modal__title {
+  font-size: 2.4vmin;
+  font-weight: 800;
+  color: var(--text-bright);
+}
+
+.ds-modal__subtitle {
+  font-size: 1.4vmin;
+  color: var(--text-dim);
+}
+
+.ds-modal__actions {
+  display: flex;
+  gap: 1vmin;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.btn--success {
+  background: rgba(74, 222, 128, 0.2);
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.btn--success:hover {
+  background: rgba(74, 222, 128, 0.35);
+}
+
+.btn--danger {
+  background: rgba(248, 113, 113, 0.2);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.btn--danger:hover {
+  background: rgba(248, 113, 113, 0.35);
+}
+
+.btn--accent {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn--accent:hover {
+  background: rgba(56, 189, 248, 0.35);
+}
+
+/* ── Steal badge in modal ── */
+.ds-modal__steal-badge {
+  display: inline-block;
+  font-weight: 700;
+  color: var(--gold);
+  background: rgba(250, 204, 21, 0.15);
+  padding: 0.1vmin 0.6vmin;
+  border-radius: 6px;
+}
+
+/* ── Steal team selector ── */
+.ds-modal__actions--steal {
+  flex-direction: column;
+  align-items: center;
+  gap: 0.8vmin;
+}
+
+.ds-modal__steal-prompt {
+  font-size: 1.2vmin;
+  color: var(--text-dim);
+  margin: 0;
+}
+
+.ds-modal__steal-teams {
+  display: flex;
+  gap: 0.6vmin;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* ── Custom points input ── */
+.ds-modal__actions--custom {
+  flex-direction: column;
+  align-items: center;
+  gap: 1vmin;
+}
+
+.ds-modal__custom-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6vmin;
+}
+
+.ds-modal__custom-input {
+  font-family: var(--font);
+  font-size: 2.5vmin;
+  font-weight: 800;
+  color: var(--text-bright);
+  background: rgba(0, 0, 0, 0.3);
+  border: 2px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 0.6vmin 1vmin;
+  width: 12vmin;
+  text-align: center;
+  outline: none;
+}
+
+.ds-modal__custom-input:focus {
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+
+.ds-modal__custom-label {
+  font-size: 2vmin;
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+/* ── Activity Log ── */
+.ds-log-section {
+  border-top: 1px solid var(--glass-border);
+  flex-shrink: 0;
+}
+
+.ds-log-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7vmin 0.4vmin;
+  font-size: 1.2vmin;
+  font-weight: 700;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s;
+}
+
+.ds-log-header:hover {
+  color: var(--text);
+}
+
+.ds-log-toggle {
+  font-size: 1vmin;
+}
+
+.ds-log-body {
+  padding: 0 0.4vmin 0.8vmin;
+}
+
+.ds-log-empty {
+  font-size: 1.1vmin;
+  color: var(--text-dim);
+  font-style: italic;
+  text-align: center;
+  padding: 1vmin;
+}
+
+.ds-log-entries {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3vmin;
+  max-height: 25vmin;
+  overflow-y: auto;
+}
+
+.ds-log-entry {
+  display: flex;
+  align-items: center;
+  gap: 0.6vmin;
+  padding: 0.35vmin 0.6vmin;
+  background: var(--surface);
+  border-radius: 6px;
+  font-size: 1.05vmin;
+}
+
+.ds-log-entry__time {
+  color: var(--text-dim);
+  font-family: monospace;
+  font-size: 1vmin;
+  min-width: 7vmin;
+}
+
+.ds-log-entry__team {
+  font-weight: 700;
+  color: var(--accent);
+  min-width: 5vmin;
+}
+
+.ds-log-entry__card {
+  color: var(--text);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ds-log-entry__points {
+  font-weight: 800;
+  min-width: 4vmin;
+  text-align: right;
+}
+
+.ds-log-entry__points--positive {
+  color: var(--success);
+}
+
+.ds-log-entry__points--zero {
+  color: var(--text-dim);
+}
+
+.ds-log-entry__action {
+  color: var(--text-dim);
+  font-size: 1vmin;
+  min-width: 10vmin;
+  text-align: right;
+}

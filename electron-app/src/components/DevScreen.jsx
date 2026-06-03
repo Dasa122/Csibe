@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import CardEditor from './CardEditor';
 import Preferences from './Preferences';
+import Scoreboard from './Scoreboard';
 import { resolveMediaPath } from './imagePlaceholder';
 
 /**
@@ -39,6 +40,20 @@ export default function DevScreen() {
   const [activeScreen, setActiveScreen] = useState(null);
   const [subScreen, setSubScreen] = useState(null);
   const [appTitle, setAppTitle] = useState('Mindent vagy semmit!');
+  const [teams, setTeams] = useState([]);
+  const [activeTeamId, setActiveTeamId] = useState('9kny');
+
+  // Done confirmation dialog state
+  const [doneConfirm, setDoneConfirm] = useState(null);
+  // { card, step: 'gotAnswer' | 'steal' | 'modeSelect' | 'customPoints',
+  //   hasBoth: bool, stealTeamId: string|null, customValue: string }
+
+  // Reset confirmation state
+  const [resetConfirm, setResetConfirm] = useState(null); // 'reset-all' | 'reset-scores' | null
+
+  // Activity log
+  const [activityLog, setActivityLog] = useState([]); // [{ id, time, teamName, cardLabel, categoryName, points, action }]
+  const [showActivityLog, setShowActivityLog] = useState(false);
 
   // Cancel any in-progress fade animation
   const cancelFade = useCallback(() => {
@@ -115,6 +130,8 @@ export default function DevScreen() {
           if (data.activeScreen !== undefined) setActiveScreen(data.activeScreen);
           if (data.subScreen !== undefined) setSubScreen(data.subScreen);
           if (data.appTitle !== undefined) setAppTitle(data.appTitle);
+          if (data.teams) setTeams(data.teams);
+          if (data.activeTeamId !== undefined) setActiveTeamId(data.activeTeamId);
           setConnected(true);
           break;
         case 'select-card':
@@ -325,20 +342,129 @@ export default function DevScreen() {
     }
   }, [selected]);
 
-  const handleMarkDone = useCallback(() => {
-    if (!selected) return;
-    log('action:done', { row: selected.row, col: selected.col, label: selected.label });
-    if (window.electronAPI) {
-      window.electronAPI.selectOnMain('disable-card', { card: selected });
+  // ── Done flow: gotAnswer → steal? → modeSelect → customPoints? → disable ──
+  const addLogEntry = useCallback((teamName, cardLabel, categoryName, points, action) => {
+    const entry = {
+      id: Date.now(),
+      time: new Date().toLocaleTimeString(),
+      teamName,
+      cardLabel,
+      categoryName,
+      points,
+      action,
+    };
+    setActivityLog(prev => [entry, ...prev.slice(0, 99)]);
+  }, []);
+
+  const finishDone = useCallback((card, gotAnswer, mode, stealTeamId, customPoints) => {
+    const teamId = stealTeamId || activeTeamId;
+    const teamName = teams.find(t => t.id === teamId)?.name || teamId;
+    const catName = categories[card.col]?.name || '';
+    const basePts = points[card.row] || 0;
+
+    let pts = 0;
+    if (gotAnswer) {
+      if (customPoints !== undefined && customPoints !== null) {
+        pts = Number(customPoints);
+      } else {
+        pts = Math.round(basePts * (mode === 'hard' ? 1 : 0.5));
+      }
     }
+
+    if (window.electronAPI) {
+      window.electronAPI.selectOnMain('disable-card', {
+        card,
+        gotAnswer,
+        mode: mode || 'easy',
+        teamId,
+        customPoints: customPoints !== undefined ? pts : undefined,
+      });
+    }
+
+    // Log entry
+    const actionLabel = !gotAnswer ? 'No answer' : customPoints !== undefined ? `Custom: ${pts}` : mode === 'hard' ? `Hard (1×): ${pts}` : `Easy (0.5×): ${pts}`;
+    addLogEntry(teamName, card.label, catName, pts, actionLabel);
+
+    setDoneConfirm(null);
+    setSelected(null);
     setShowAnswer(false);
     stopAudioFull();
-    // Unselect after marking done
-    setSelected(null);
+
     if (window.electronAPI) {
       window.electronAPI.selectOnMain('select-card', { card: null });
     }
+
+    // Auto-step: advance to next team
+    if (teams.length > 1) {
+      const currentIdx = teams.findIndex(t => t.id === activeTeamId);
+      const nextIdx = (currentIdx + 1) % teams.length;
+      const nextTeamId = teams[nextIdx].id;
+      setTimeout(() => {
+        setActiveTeamId(nextTeamId);
+        if (window.electronAPI) {
+          window.electronAPI.selectOnMain('set-active-team', { teamId: nextTeamId });
+        }
+      }, 150);
+    }
+  }, [activeTeamId, teams, categories, points, cards, stopAudioFull, addLogEntry]);
+
+  const handleMarkDone = useCallback(() => {
+    if (!selected) return;
+    log('action:done-confirm', { row: selected.row, col: selected.col, label: selected.label });
+
+    const hasEasy = !!(selected.easyImage || selected.image || selected.easyAudio || selected.audio);
+    const hasHard = !!(selected.hardImage || selected.hardAudio);
+    const hasBoth = hasEasy && hasHard;
+
+    setShowAnswer(false);
+    stopAudioFull();
+    setDoneConfirm({ card: selected, step: 'gotAnswer', hasBoth, stealTeamId: null, customValue: '' });
   }, [selected, stopAudioFull]);
+
+  // Step 1: Got answer?
+  const handleDoneGotAnswer = useCallback((got) => {
+    if (!doneConfirm) return;
+    if (got) {
+      // Team got it → go to mode select
+      setDoneConfirm(prev => ({ ...prev, step: 'modeSelect' }));
+    } else {
+      // Didn't get it → ask about stealing
+      setDoneConfirm(prev => ({ ...prev, step: 'steal' }));
+    }
+  }, [doneConfirm]);
+
+  // Step 1b: Steal?
+  const handleDoneSteal = useCallback((stealTeamId) => {
+    if (!doneConfirm) return;
+    if (stealTeamId) {
+      setDoneConfirm(prev => ({ ...prev, step: 'modeSelect', stealTeamId }));
+    } else {
+      // Nobody got it
+      finishDone(doneConfirm.card, false, 'easy', null, null);
+    }
+  }, [doneConfirm, finishDone]);
+
+  // Step 2: Mode select
+  const handleDoneMode = useCallback((mode) => {
+    if (!doneConfirm) return;
+    if (mode === 'custom') {
+      setDoneConfirm(prev => ({ ...prev, step: 'customPoints', customValue: '' }));
+    } else {
+      finishDone(doneConfirm.card, true, mode, doneConfirm.stealTeamId, null);
+    }
+  }, [doneConfirm, finishDone]);
+
+  // Step 2b: Custom points input
+  const handleDoneCustom = useCallback(() => {
+    if (!doneConfirm) return;
+    const val = parseInt(doneConfirm.customValue, 10);
+    if (isNaN(val) || val < 0) return;
+    finishDone(doneConfirm.card, true, 'custom', doneConfirm.stealTeamId, val);
+  }, [doneConfirm, finishDone]);
+
+  const handleCancelDoneConfirm = useCallback(() => {
+    setDoneConfirm(null);
+  }, []);
 
   const handleUnselect = useCallback(() => {
     log('action:unselect');
@@ -360,11 +486,26 @@ export default function DevScreen() {
 
   // ---- Controls ----
   const handleReset = useCallback(() => {
-    log('action:reset');
-    if (window.electronAPI) {
-      window.electronAPI.selectOnMain('request-reset', {});
-    }
+    setResetConfirm('reset-all');
   }, []);
+
+  const handleResetConfirm = useCallback(() => {
+    if (resetConfirm === 'reset-all') {
+      log('action:reset-confirmed');
+      if (window.electronAPI) {
+        window.electronAPI.selectOnMain('request-reset', {});
+      }
+      addLogEntry('All', '—', '—', 0, 'Game reset');
+      setActivityLog([]);
+    } else if (resetConfirm === 'reset-scores') {
+      log('action:reset-scores-confirmed');
+      if (window.electronAPI) {
+        window.electronAPI.selectOnMain('reset-team-scores', {});
+      }
+      addLogEntry('All', '—', '—', 0, 'Scores reset');
+    }
+    setResetConfirm(null);
+  }, [resetConfirm, addLogEntry]);
 
   const handleOpenPreferences = useCallback(() => {
     log('action:open-preferences');
@@ -384,6 +525,66 @@ export default function DevScreen() {
   const handleCloseDevScreen = useCallback(() => {
     if (window.electronAPI) {
       window.electronAPI.closeDevScreen();
+    }
+  }, []);
+
+  const handleSelectTeam = useCallback((teamId) => {
+    setActiveTeamId(teamId);
+    if (window.electronAPI) {
+      window.electronAPI.selectOnMain('set-active-team', { teamId });
+    }
+  }, []);
+
+  const handleAdjustTeamScore = useCallback((teamId, delta) => {
+    if (window.electronAPI) {
+      window.electronAPI.selectOnMain('adjust-team-score', { teamId, delta });
+    }
+    const teamName = teams.find(t => t.id === teamId)?.name || teamId;
+    const sign = delta > 0 ? '+' : '';
+    addLogEntry(teamName, '—', 'Manual', delta, `Manual ${sign}${delta}`);
+  }, [teams, addLogEntry]);
+
+  const handleResetTeamScores = useCallback(() => {
+    setResetConfirm('reset-scores');
+  }, []);
+
+  const handleExportLog = useCallback(() => {
+    const now = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const rows = [];
+
+    // Header
+    rows.push(['Activity Log Export', now].join(','));
+    rows.push('');
+    rows.push(['Time', 'Team', 'Card', 'Category', 'Points', 'Action'].join(','));
+
+    // Log entries (oldest first for chronological order)
+    const sorted = [...activityLog].reverse();
+    for (const e of sorted) {
+      rows.push([e.time, e.teamName, e.cardLabel, e.categoryName, e.points, e.action].map(c => `"${c}"`).join(','));
+    }
+
+    // Final scores section
+    rows.push('');
+    rows.push(['', '', '', '', '', ''].join(','));
+    rows.push(['FINAL SCORES', '', '', '', '', ''].join(','));
+    rows.push(['Team', 'Score', '', '', '', ''].join(','));
+    for (const t of teams) {
+      rows.push([t.name, t.score, '', '', '', ''].join(','));
+    }
+
+    const csv = rows.join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `score-log-${now}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [activityLog, teams]);
+
+  const handleRenameTeam = useCallback((teamId, name) => {
+    if (window.electronAPI) {
+      window.electronAPI.selectOnMain('rename-team', { teamId, name });
     }
   }, []);
 
@@ -416,6 +617,22 @@ export default function DevScreen() {
           <button className="controls-btn" onClick={handleUndo} disabled={undoDepth === 0} title="Undo last action">↩ Undo</button>
           <button className="controls-btn" onClick={handleOpenPreferences} title="Preferences">⚙️ Preferences</button>
         </div>
+
+        {teams.length > 0 && (
+          <div className="ds-scoreboard-section">
+            <div className="ds-scoreboard-header">
+              <span>Teams</span>
+              <button className="controls-btn" onClick={handleResetTeamScores} title="Reset all team scores">↺ Reset Scores</button>
+            </div>
+            <Scoreboard
+              teams={teams}
+              activeTeamId={activeTeamId}
+              onSelectTeam={handleSelectTeam}
+              onAdjustScore={handleAdjustTeamScore}
+              onRenameTeam={handleRenameTeam}
+            />
+          </div>
+        )}
       </div>
     );
   }
@@ -458,6 +675,62 @@ export default function DevScreen() {
         <button className="controls-btn" onClick={handleOpenPreferences} title="Preferences: General, Categories, Presets, Screens">
           ⚙️ Preferences
         </button>
+      </div>
+
+      {/* ---- Team Scoreboard ---- */}
+      {teams.length > 0 && (
+        <div className="ds-scoreboard-section">
+          <div className="ds-scoreboard-header">
+            <span>Teams</span>
+            <button className="controls-btn" onClick={handleResetTeamScores} title="Reset all team scores">↺ Reset Scores</button>
+          </div>
+          <Scoreboard
+            teams={teams}
+            activeTeamId={activeTeamId}
+            onSelectTeam={handleSelectTeam}
+            onAdjustScore={handleAdjustTeamScore}
+            onRenameTeam={handleRenameTeam}
+          />
+        </div>
+      )}
+
+      {/* ---- Activity Log ---- */}
+      <div className="ds-log-section">
+        <div className="ds-log-header" onClick={() => setShowActivityLog(prev => !prev)}>
+          <span>📋 Activity Log ({activityLog.length})</span>
+          <span className="ds-log-toggle">{showActivityLog ? '▲' : '▼'}</span>
+        </div>
+        {showActivityLog && (
+          <div className="ds-log-body">
+            {activityLog.length === 0 ? (
+              <p className="ds-log-empty">No actions yet. Mark cards as done to see entries.</p>
+            ) : (
+              <div className="ds-log-entries">
+                {activityLog.map(entry => (
+                  <div key={entry.id} className="ds-log-entry">
+                    <span className="ds-log-entry__time">{entry.time}</span>
+                    <span className="ds-log-entry__team">{entry.teamName}</span>
+                    <span className="ds-log-entry__card">{entry.cardLabel} — {entry.categoryName}</span>
+                    <span className={`ds-log-entry__points ${entry.points > 0 ? 'ds-log-entry__points--positive' : 'ds-log-entry__points--zero'}`}>
+                      {entry.points > 0 ? `+${entry.points}` : '0'}
+                    </span>
+                    <span className="ds-log-entry__action">{entry.action}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {activityLog.length > 0 && (
+              <div className="ds-log-actions">
+                <button className="controls-btn" onClick={() => setActivityLog([])}>
+                  Clear Log
+                </button>
+                <button className="controls-btn" onClick={() => handleExportLog()}>
+                  📥 Export CSV
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="ds-layout">
@@ -659,13 +932,122 @@ export default function DevScreen() {
         document.body
       )}
 
-      {/* ── Preferences modal (consolidates General, Categories, Presets, Screens) ── */}
+      {/* ── Reset confirmation modal ── */}
+      {resetConfirm && createPortal(
+        <div className="ds-modal-overlay" onClick={() => setResetConfirm(null)}>
+          <div className="ds-modal ds-modal--done" onClick={e => e.stopPropagation()}>
+            <h2 className="ds-modal__title">
+              {resetConfirm === 'reset-all' ? '⚠️ Reset everything?' : '⚠️ Reset all scores?'}
+            </h2>
+            <p className="ds-modal__subtitle">
+              {resetConfirm === 'reset-all'
+                ? 'This will reset ALL cards, scores, and undo history. This cannot be undone.'
+                : 'This will reset all team scores to 0. Card progress will NOT be affected.'}
+            </p>
+            <div className="ds-modal__actions">
+              <button className="btn btn--danger btn--large" onClick={handleResetConfirm}>
+                {resetConfirm === 'reset-all' ? '🔄 Yes, Reset All' : '↺ Yes, Reset Scores'}
+              </button>
+              <button className="btn btn--secondary" onClick={() => setResetConfirm(null)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── Done confirmation modal ── */}
+      {doneConfirm && createPortal(
+        <div className="ds-modal-overlay" onClick={handleCancelDoneConfirm}>
+          <div className="ds-modal ds-modal--done" onClick={e => e.stopPropagation()}>
+            <h2 className="ds-modal__title">
+              {doneConfirm.step === 'gotAnswer' && 'Did the team get the answer?'}
+              {doneConfirm.step === 'steal' && 'Did another team steal it?'}
+              {doneConfirm.step === 'modeSelect' && 'Select score mode'}
+              {doneConfirm.step === 'customPoints' && 'Enter custom points'}
+            </h2>
+            <p className="ds-modal__subtitle">
+              {doneConfirm.card.label} pts — {categories[doneConfirm.card.col]?.name}
+              {doneConfirm.stealTeamId && (
+                <span className="ds-modal__steal-badge">
+                  {' '}→ {teams.find(t => t.id === doneConfirm.stealTeamId)?.name || doneConfirm.stealTeamId}
+                </span>
+              )}
+            </p>
+
+            {/* Step 1: Got answer? */}
+            {doneConfirm.step === 'gotAnswer' && (
+              <div className="ds-modal__actions">
+                <button className="btn btn--success btn--large" onClick={() => handleDoneGotAnswer(true)}>✅ Yes</button>
+                <button className="btn btn--danger btn--large" onClick={() => handleDoneGotAnswer(false)}>❌ No</button>
+                <button className="btn btn--secondary" onClick={handleCancelDoneConfirm}>Cancel</button>
+              </div>
+            )}
+
+            {/* Step 1b: Steal? */}
+            {doneConfirm.step === 'steal' && (
+              <div className="ds-modal__actions ds-modal__actions--steal">
+                <p className="ds-modal__steal-prompt">Select the team that stole:</p>
+                <div className="ds-modal__steal-teams">
+                  {teams.map(t => (
+                    <button
+                      key={t.id}
+                      className={`btn btn--small ${t.id === activeTeamId ? 'btn--primary' : 'btn--secondary'}`}
+                      onClick={() => handleDoneSteal(t.id)}
+                    >
+                      {t.name}
+                    </button>
+                  ))}
+                </div>
+                <button className="btn btn--danger" onClick={() => handleDoneSteal(null)}>Nobody got it</button>
+                <button className="btn btn--secondary" onClick={handleCancelDoneConfirm}>Cancel</button>
+              </div>
+            )}
+
+            {/* Step 2: Mode select (Easy / Hard / Custom) */}
+            {doneConfirm.step === 'modeSelect' && (
+              <div className="ds-modal__actions">
+                <button className="btn btn--primary btn--large" onClick={() => handleDoneMode('easy')}>🟢 Easy (0.5×)</button>
+                <button className="btn btn--danger btn--large" onClick={() => handleDoneMode('hard')}>🔴 Hard (1×)</button>
+                <button className="btn btn--accent btn--large" onClick={() => handleDoneMode('custom')}>✏️ Custom</button>
+                <button className="btn btn--secondary" onClick={handleCancelDoneConfirm}>Cancel</button>
+              </div>
+            )}
+
+            {/* Step 2b: Custom points */}
+            {doneConfirm.step === 'customPoints' && (
+              <div className="ds-modal__actions ds-modal__actions--custom">
+                <div className="ds-modal__custom-row">
+                  <input
+                    className="ds-modal__custom-input"
+                    type="number"
+                    min="0"
+                    value={doneConfirm.customValue}
+                    onChange={(e) => setDoneConfirm(prev => ({ ...prev, customValue: e.target.value }))}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleDoneCustom(); }}
+                    placeholder="Points..."
+                    autoFocus
+                  />
+                  <span className="ds-modal__custom-label">pts</span>
+                </div>
+                <button className="btn btn--success btn--large" onClick={handleDoneCustom}>✅ Award</button>
+                <button className="btn btn--secondary" onClick={handleCancelDoneConfirm}>Cancel</button>
+              </div>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── Preferences modal ── */}
       {showPreferences && createPortal(
         <Preferences
           appTitle={appTitle}
           categories={categories}
           points={points}
           cards={cards}
+          teams={teams}
           activeScreen={activeScreen}
           subScreen={subScreen}
           onSave={handlePreferencesSave}
