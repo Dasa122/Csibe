@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Grid from './components/Grid';
 import { loadActivePresetName } from './components/PresetManager';
 import DevScreen from './components/DevScreen';
+import useTheme from './components/useTheme';
 import defaultCards from './data/cards.json';
 import { resolveMediaPath } from './components/imagePlaceholder';
 
@@ -66,6 +67,7 @@ function saveCards(cards) {
 
 export default function App() {
   const route = useHashRoute();
+  const { theme, toggleTheme } = useTheme();
 
   const log = useCallback((message, payload) => {
     console.log(`[MainScreen] ${new Date().toLocaleTimeString()} │ ${message}`, payload ?? '');
@@ -699,6 +701,13 @@ export default function App() {
     <div className="app">
       <header className="app-header">
         <h1 className="app-title">{appTitle}</h1>
+        <button
+          className="controls-btn theme-toggle"
+          onClick={toggleTheme}
+          title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+        >
+          {theme === 'light' ? '🌙 Dark' : '☀️ Light'}
+        </button>
       </header>
 
       {/* ---- Column titles ---- */}

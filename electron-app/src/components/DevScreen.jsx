@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import CardEditor from './CardEditor';
 import Preferences from './Preferences';
 import Scoreboard from './Scoreboard';
+import useTheme from './useTheme';
 import { resolveMediaPath } from './imagePlaceholder';
 
 /**
@@ -12,6 +13,8 @@ import { resolveMediaPath } from './imagePlaceholder';
  * and the edit/undo tools that stay off the main display.
  */
 export default function DevScreen() {
+  const { theme, toggleTheme } = useTheme();
+
   const log = useCallback((message, payload) => {
     console.log(`[DevScreen] ${new Date().toLocaleTimeString()} │ ${message}`, payload ?? '');
   }, []);
@@ -616,6 +619,9 @@ export default function DevScreen() {
           <button className="controls-btn" onClick={handleReset} title="Reset all cards">🔄 Reset</button>
           <button className="controls-btn" onClick={handleUndo} disabled={undoDepth === 0} title="Undo last action">↩ Undo</button>
           <button className="controls-btn" onClick={handleOpenPreferences} title="Preferences">⚙️ Preferences</button>
+          <button className="controls-btn" onClick={toggleTheme} title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}>
+            {theme === 'light' ? '🌙 Dark' : '☀️ Light'}
+          </button>
         </div>
 
         {teams.length > 0 && (
@@ -674,6 +680,9 @@ export default function DevScreen() {
         </button>
         <button className="controls-btn" onClick={handleOpenPreferences} title="Preferences: General, Categories, Presets, Screens">
           ⚙️ Preferences
+        </button>
+        <button className="controls-btn" onClick={toggleTheme} title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}>
+          {theme === 'light' ? '🌙 Dark' : '☀️ Light'}
         </button>
       </div>
 
