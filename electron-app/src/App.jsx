@@ -759,9 +759,6 @@ export default function App() {
               />
             )}
             <div className="answer-overlay__meta">{answerOverlay.label} pont — {answerOverlay.categoryName}</div>
-            <button className="btn btn--secondary btn--large" onClick={() => setAnswerOverlay(null)}>
-              ✕ Bezárás
-            </button>
           </div>
         </div>
       )}
