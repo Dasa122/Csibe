@@ -755,7 +755,10 @@ export default function DevScreen() {
           </div>
 
           <div className="ds-mini-grid">
-            <div className="ds-mini-row ds-mini-row--header">
+            <div
+              className="ds-mini-row ds-mini-row--header"
+              style={{ gridTemplateColumns: `minmax(4.2vmin, 4.8vmin) repeat(${categories.length}, minmax(0, 1fr))` }}
+            >
               <div className="ds-mini-cell ds-mini-cell--row-label" />
               {categories.map((cat, ci) => (
                 <div key={ci} className="ds-mini-cell ds-mini-cell--header" title={cat.name}>
@@ -766,7 +769,11 @@ export default function DevScreen() {
             </div>
 
             {points.map((pts, ri) => (
-              <div key={ri} className="ds-mini-row">
+              <div
+                key={ri}
+                className="ds-mini-row"
+                style={{ gridTemplateColumns: `minmax(4.2vmin, 4.8vmin) repeat(${categories.length}, minmax(0, 1fr))` }}
+              >
                 <div className="ds-mini-cell ds-mini-cell--row-label">{pts}</div>
                 {categories.map((cat, ci) => {
                   const card = getCard(ri, ci);

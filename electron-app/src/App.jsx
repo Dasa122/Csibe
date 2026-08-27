@@ -711,7 +711,10 @@ export default function App() {
       </header>
 
       {/* ---- Column titles ---- */}
-      <div className="column-titles">
+      <div
+        className="column-titles"
+        style={{ gridTemplateColumns: `repeat(${cardsData.categories.length}, 1fr)` }}
+      >
         {cardsData.categories.map((cat) => (
           <div key={cat.id} className="column-title" title={cat.name}>
             <span className="cat-icon">{cat.icon}</span>

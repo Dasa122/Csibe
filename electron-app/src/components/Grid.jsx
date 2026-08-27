@@ -18,7 +18,11 @@ const Grid = memo(function Grid({
   return (
     <div className="grid" role="grid" aria-label="7×7 game board">
       {points.map((pts, rowIdx) => (
-        <div className="grid-row" key={rowIdx}>
+        <div
+          className="grid-row"
+          key={rowIdx}
+          style={{ gridTemplateColumns: `repeat(${categories.length}, 1fr)` }}
+        >
           {categories.map((cat, colIdx) => {
             const card = getCard(rowIdx, colIdx);
             if (!card) return <div key={colIdx} className="card-placeholder" />;
