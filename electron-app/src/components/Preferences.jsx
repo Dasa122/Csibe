@@ -75,7 +75,7 @@ export default function Preferences({
     setCats(prev => prev.map((c, i) => i === idx ? { ...c, [field]: value } : c));
   };
   const handleCatAdd = () => {
-    setCats(prev => [...prev, { id: `cat-${Date.now()}`, name: 'New Category', icon: '❓' }]);
+    setCats(prev => [...prev, { id: `cat-${Date.now()}`, name: 'New Category', icon: '❓', tiles: points.length }]);
   };
   const handleCatRemove = (idx) => {
     if (cats.length <= 1) return;
@@ -200,28 +200,55 @@ export default function Preferences({
 
   // ── Save handler ──
   const handleApply = () => {
-    // Remap cards for category changes
     const oldCount = categories.length;
     const newCount = cats.length;
-    let newCards = [...cards];
-    if (newCount !== oldCount) {
-      newCards = [];
-      for (let r = 0; r < points.length; r++) {
-        for (let c = 0; c < newCount; c++) {
-          if (c < oldCount) {
-            const existing = cards.find(cd => cd.row === r && cd.col === c);
-            newCards.push(existing || { row: r, col: c, label: String(points[r]), easyImage: '', hardImage: '', answer: '', easyAudio: '', hardAudio: '', enabled: true });
-          } else {
-            newCards.push({ row: r, col: c, label: String(points[r]), easyImage: '', hardImage: '', answer: '', easyAudio: '', hardAudio: '', enabled: true });
-          }
+    const oldRows = points.length;
+
+    // Per-category tile counts (default to the current row count)
+    const catTiles = cats.map(c => {
+      const t = parseInt(c.tiles, 10);
+      return Number.isFinite(t) && t > 0 ? t : oldRows;
+    });
+    const maxRows = Math.max(...catTiles, 1);
+
+    // Build the points array to cover the tallest column
+    let newPoints = points;
+    if (maxRows !== oldRows) {
+      newPoints = [];
+      for (let r = 0; r < maxRows; r++) {
+        if (r < oldRows) {
+          newPoints.push(points[r]);
+        } else {
+          const last = newPoints[newPoints.length - 1] ?? 0;
+          newPoints.push(last + 100);
         }
       }
     }
+
+    // Rebuild cards honoring each column's tile count
+    const newCards = [];
+    for (let c = 0; c < newCount; c++) {
+      for (let r = 0; r < catTiles[c]; r++) {
+        const label = String(newPoints[r]);
+        if (r < oldRows && c < oldCount) {
+          const existing = cards.find(cd => cd.row === r && cd.col === c);
+          newCards.push(existing
+            ? { ...existing, label }
+            : { row: r, col: c, label, easyImage: '', hardImage: '', answer: '', easyAudio: '', hardAudio: '', enabled: true });
+        } else {
+          newCards.push({ row: r, col: c, label, easyImage: '', hardImage: '', answer: '', easyAudio: '', hardAudio: '', enabled: true });
+        }
+      }
+    }
+
+    const updatedCats = cats.map((c, i) => ({ ...c, tiles: catTiles[i] }));
+
     onSave({
       type: 'apply-all',
       appTitle: title,
-      categories: cats,
+      categories: updatedCats,
       cards: newCards,
+      points: newPoints,
       teams: localTeams,
       activeScreen: localActive,
       subScreen: localSub,
@@ -270,13 +297,29 @@ export default function Preferences({
             {tab === 'categories' && (
               <div className="prefs-section">
                 <h3>🏷 Categories</h3>
-                <p className="cat-editor-hint">Rename, reorder, add or remove columns. Grid adjusts automatically.</p>
+                <p className="cat-editor-hint">Rename, reorder, add or remove columns. Set how many tiles each column has — a column with more tiles uses smaller cards, so all columns stay the same height.</p>
+                <div className="cat-editor-header">
+                  <span className="cat-editor-col-num">#</span>
+                  <span className="cat-editor-header-icon">Icon</span>
+                  <span className="cat-editor-header-name">Category</span>
+                  <span className="cat-editor-header-tiles" title="Number of tiles in this column">Tiles</span>
+                  <span className="cat-editor-header-actions" />
+                </div>
                 <div className="cat-editor-list">
                   {cats.map((cat, idx) => (
                     <div key={cat.id} className="cat-editor-row">
                       <div className="cat-editor-col-num">{idx + 1}</div>
                       <input className="cat-editor-input cat-editor-input--icon" type="text" value={cat.icon} onChange={e => handleCatChange(idx, 'icon', e.target.value)} placeholder="😀" maxLength={4} />
                       <input className="cat-editor-input cat-editor-input--name" type="text" value={cat.name} onChange={e => handleCatChange(idx, 'name', e.target.value)} placeholder="Category name" />
+                      <input
+                        className="cat-editor-input cat-editor-input--tiles"
+                        type="number"
+                        min={1}
+                        max={12}
+                        value={cat.tiles ?? points.length}
+                        onChange={e => handleCatChange(idx, 'tiles', e.target.value)}
+                        title="Number of tiles in this column"
+                      />
                       <div className="cat-editor-actions">
                         <button className="cat-editor-btn" onClick={() => handleCatMoveUp(idx)} disabled={idx === 0}>▲</button>
                         <button className="cat-editor-btn" onClick={() => handleCatMoveDown(idx)} disabled={idx === cats.length - 1}>▼</button>

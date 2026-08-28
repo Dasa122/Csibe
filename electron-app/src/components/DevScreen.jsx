@@ -755,11 +755,7 @@ export default function DevScreen() {
           </div>
 
           <div className="ds-mini-grid">
-            <div
-              className="ds-mini-row ds-mini-row--header"
-              style={{ gridTemplateColumns: `minmax(4.2vmin, 4.8vmin) repeat(${categories.length}, minmax(0, 1fr))` }}
-            >
-              <div className="ds-mini-cell ds-mini-cell--row-label" />
+            <div className="ds-mini-header-row">
               {categories.map((cat, ci) => (
                 <div key={ci} className="ds-mini-cell ds-mini-cell--header" title={cat.name}>
                   <span className="ds-mini-header-icon">{cat.icon}</span>
@@ -768,31 +764,31 @@ export default function DevScreen() {
               ))}
             </div>
 
-            {points.map((pts, ri) => (
-              <div
-                key={ri}
-                className="ds-mini-row"
-                style={{ gridTemplateColumns: `minmax(4.2vmin, 4.8vmin) repeat(${categories.length}, minmax(0, 1fr))` }}
-              >
-                <div className="ds-mini-cell ds-mini-cell--row-label">{pts}</div>
-                {categories.map((cat, ci) => {
-                  const card = getCard(ri, ci);
-                  if (!card) return <div key={ci} className="ds-mini-cell ds-mini-cell--empty" />;
-                  const sel = isSelectedCard(card);
-                  return (
-                    <button
-                      key={ci}
-                      className={`ds-mini-cell ${!card.enabled ? 'ds-mini-cell--disabled' : ''} ${sel ? 'ds-mini-cell--selected' : ''} ${(card.easyImage || card.image) ? 'ds-mini-cell--has-easy' : ''} ${card.hardImage ? 'ds-mini-cell--has-hard' : ''} ${(card.easyAudio || card.audio) ? 'ds-mini-cell--has-easy-audio' : ''} ${card.hardAudio ? 'ds-mini-cell--has-hard-audio' : ''}`}
-                      onClick={() => card.enabled && handleSelectCard(card)}
-                      onDoubleClick={() => handleReenableCard(card)}
-                      title={`${card.label} — ${cat.name}${(card.easyImage || card.image) ? ' 🖼' : ''}${card.hardImage ? ' 🖼🔥' : ''}${(card.easyAudio || card.audio) ? ' 🎵' : ''}${card.hardAudio ? ' 🎵🔥' : ''}`}
-                    >
-                      <span className="ds-mini-label">{card.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            ))}
+            <div className="ds-mini-cols">
+              {categories.map((cat, ci) => {
+                const colTiles = cat.tiles ?? points.length;
+                return (
+                  <div key={ci} className="ds-mini-col">
+                    {Array.from({ length: colTiles }, (_, ri) => {
+                      const card = getCard(ri, ci);
+                      if (!card) return <div key={ri} className="ds-mini-cell ds-mini-cell--empty" />;
+                      const sel = isSelectedCard(card);
+                      return (
+                        <button
+                          key={ri}
+                          className={`ds-mini-cell ${!card.enabled ? 'ds-mini-cell--disabled' : ''} ${sel ? 'ds-mini-cell--selected' : ''} ${(card.easyImage || card.image) ? 'ds-mini-cell--has-easy' : ''} ${card.hardImage ? 'ds-mini-cell--has-hard' : ''} ${(card.easyAudio || card.audio) ? 'ds-mini-cell--has-easy-audio' : ''} ${card.hardAudio ? 'ds-mini-cell--has-hard-audio' : ''}`}
+                          onClick={() => card.enabled && handleSelectCard(card)}
+                          onDoubleClick={() => handleReenableCard(card)}
+                          title={`${card.label} — ${cat.name}${(card.easyImage || card.image) ? ' 🖼' : ''}${card.hardImage ? ' 🖼🔥' : ''}${(card.easyAudio || card.audio) ? ' 🎵' : ''}${card.hardAudio ? ' 🎵🔥' : ''}`}
+                        >
+                          <span className="ds-mini-label">{card.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
 

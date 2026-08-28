@@ -73,10 +73,6 @@ export default function App() {
     console.log(`[MainScreen] ${new Date().toLocaleTimeString()} │ ${message}`, payload ?? '');
   }, []);
 
-  // Dev screen route — render standalone operator view
-  if (route === '/dev-screen') {
-    return <DevScreen />;
-  }
   const [cardsData, setCardsData] = useState(loadCards);
   const [appTitle, setAppTitle] = useState(loadTitle);
   const [selectedCard, setSelectedCard] = useState(null);
@@ -102,6 +98,7 @@ export default function App() {
 
   // Initialize screen defaults from Electron on first load
   useEffect(() => {
+    if (route === '/dev-screen') return;
     if (!window.electronAPI) return;
     window.electronAPI.getScreens().then(displays => {
       if (displays.length > 0 && activeScreen === null) {
@@ -113,7 +110,7 @@ export default function App() {
         setSubScreen(displays[0].id);
       }
     }).catch(() => {});
-  }, []); // eslint-disable-line
+  }, [route]); // eslint-disable-line
   const [devScreenOpen, setDevScreenOpen] = useState(false);
   const [activePresetName, setActivePresetName] = useState(loadActivePresetName);
   const [teams, setTeams] = useState(loadTeams);
@@ -121,6 +118,7 @@ export default function App() {
 
   // Auto-open dev screen on startup
   useEffect(() => {
+    if (route === '/dev-screen') return;
     if (!window.electronAPI || subScreen === null) return;
     const timer = setTimeout(() => {
       window.electronAPI.openDevScreen(subScreen).then(() => {
@@ -129,7 +127,7 @@ export default function App() {
       });
     }, 300);
     return () => clearTimeout(timer);
-  }, [subScreen]); // eslint-disable-line
+  }, [subScreen, route]); // eslint-disable-line
 
   // Refs for stable access in event listeners
   const undoStackRef = useRef(undoStack);
@@ -292,8 +290,9 @@ export default function App() {
   }, [teams]);
 
   useEffect(() => {
+    if (route === '/dev-screen') return;
     syncDevScreen();
-  }, [syncDevScreen, selectedCard, undoStack, lastClicked]);
+  }, [syncDevScreen, selectedCard, undoStack, lastClicked, route]);
 
   const handleUndo = useCallback(() => {
     const stack = undoStackRef.current;
@@ -339,6 +338,7 @@ export default function App() {
 
   // Keyboard shortcuts
   useEffect(() => {
+    if (route === '/dev-screen') return;
     const handler = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
         e.preventDefault();
@@ -353,10 +353,11 @@ export default function App() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [handleUndo]);
+  }, [handleUndo, route]);
 
   // Listen for actions from the dev screen (reverse IPC)
   useEffect(() => {
+    if (route === '/dev-screen') return;
     if (!window.electronAPI) return;
     const cleanup = window.electronAPI.onMainScreenAction((action, data) => {
       switch (action) {
@@ -534,16 +535,17 @@ export default function App() {
           break;
         }
         case 'apply-preferences': {
-          const { appTitle: newTitle, categories: newCats, cards: newCards, teams: newTeams, activeScreen: newActive, subScreen: newSub } = data;
+          const { appTitle: newTitle, categories: newCats, cards: newCards, points: newPoints, teams: newTeams, activeScreen: newActive, subScreen: newSub } = data;
           if (newTitle !== undefined) {
             setAppTitle(newTitle);
             saveTitle(newTitle);
           }
-          if (newCats || newCards) {
+          if (newCats || newCards || newPoints) {
             setCardsData(prev => ({
               ...prev,
               categories: newCats || prev.categories,
               cards: newCards || prev.cards,
+              points: newPoints || prev.points,
             }));
           }
           if (newTeams) {
@@ -605,7 +607,7 @@ export default function App() {
       }
     });
     return cleanup;
-  }, [cardsData, handleUndo, pushUndo, syncDevScreen, selectTeam, adjustTeamScore, renameTeam]);
+  }, [cardsData, handleUndo, pushUndo, syncDevScreen, selectTeam, adjustTeamScore, renameTeam, route]);
 
   const handleCardClick = useCallback((card) => {
     if (frozenCardRef.current) return;
@@ -692,10 +694,16 @@ export default function App() {
 
   // Check dev screen status on mount
   useEffect(() => {
+    if (route === '/dev-screen') return;
     if (window.electronAPI) {
       window.electronAPI.devScreenStatus().then(setDevScreenOpen);
     }
-  }, []);
+  }, [route]);
+
+  // Dev screen route — render standalone operator view
+  if (route === '/dev-screen') {
+    return <DevScreen />;
+  }
 
   return (
     <div className="app">

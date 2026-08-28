@@ -15,32 +15,33 @@ const Grid = memo(function Grid({
   const dblClick = onCardDoubleClick || (() => {});
   const rightClick = onCardRightClick || (() => {});
 
+  const maxTiles = Math.max(...categories.map(c => c.tiles ?? points.length), 1);
+
   return (
-    <div className="grid" role="grid" aria-label="7×7 game board">
-      {points.map((pts, rowIdx) => (
-        <div
-          className="grid-row"
-          key={rowIdx}
-          style={{ gridTemplateColumns: `repeat(${categories.length}, 1fr)` }}
-        >
-          {categories.map((cat, colIdx) => {
-            const card = getCard(rowIdx, colIdx);
-            if (!card) return <div key={colIdx} className="card-placeholder" />;
-            const isSelected = selectedCard?.row === rowIdx && selectedCard?.col === colIdx;
-            return (
-              <Card
-                key={`${rowIdx}-${colIdx}`}
-                card={card}
-                category={cat}
-                isSelected={isSelected}
-                onClick={() => click(card)}
-                onDoubleClick={() => dblClick(card)}
-                onContextMenu={(e) => { e.preventDefault(); rightClick(card); }}
-              />
-            );
-          })}
-        </div>
-      ))}
+    <div className="grid" role="grid" aria-label={`${categories.length}×${maxTiles} game board`}>
+      {categories.map((cat, colIdx) => {
+        const colTiles = cat.tiles ?? points.length;
+        return (
+          <div className="grid-col" key={colIdx} role="row">
+            {Array.from({ length: colTiles }, (_, rowIdx) => {
+              const card = getCard(rowIdx, colIdx);
+              if (!card) return <div key={rowIdx} className="card-placeholder" />;
+              const isSelected = selectedCard?.row === rowIdx && selectedCard?.col === colIdx;
+              return (
+                <Card
+                  key={`${rowIdx}-${colIdx}`}
+                  card={card}
+                  category={cat}
+                  isSelected={isSelected}
+                  onClick={() => click(card)}
+                  onDoubleClick={() => dblClick(card)}
+                  onContextMenu={(e) => { e.preventDefault(); rightClick(card); }}
+                />
+              );
+            })}
+          </div>
+        );
+      })}
     </div>
   );
 });
