@@ -233,10 +233,10 @@ export default function Preferences({
         if (r < oldRows && c < oldCount) {
           const existing = cards.find(cd => cd.row === r && cd.col === c);
           newCards.push(existing
-            ? { ...existing, label }
-            : { row: r, col: c, label, easyImage: '', hardImage: '', answer: '', easyAudio: '', hardAudio: '', enabled: true });
+            ? { ...existing }
+            : { row: r, col: c, label, points: newPoints[r], easyImage: '', hardImage: '', answer: '', easyAudio: '', hardAudio: '', enabled: true });
         } else {
-          newCards.push({ row: r, col: c, label, easyImage: '', hardImage: '', answer: '', easyAudio: '', hardAudio: '', enabled: true });
+          newCards.push({ row: r, col: c, label, points: newPoints[r], easyImage: '', hardImage: '', answer: '', easyAudio: '', hardAudio: '', enabled: true });
         }
       }
     }

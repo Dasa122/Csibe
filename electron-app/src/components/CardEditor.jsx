@@ -3,6 +3,11 @@ import { PLACEHOLDER_IMAGE, resolveMediaPath } from './imagePlaceholder';
 
 export default function CardEditor({ card, categories, onSave, onCancel }) {
   const [label, setLabel] = useState(card.label);
+  const [points, setPoints] = useState(
+    card.points !== undefined && card.points !== null && String(card.points).trim() !== ''
+      ? card.points
+      : card.label
+  );
   const [easyImage, setEasyImage] = useState(card.easyImage || card.image || '');
   const [hardImage, setHardImage] = useState(card.hardImage || '');
   const [answer, setAnswer] = useState(card.answer || '');
@@ -15,9 +20,11 @@ export default function CardEditor({ card, categories, onSave, onCancel }) {
   const audioRef = useRef(null);
 
   const handleSave = () => {
+    const trimmedPoints = String(points ?? '').trim();
     onSave({
       ...card,
       label,
+      points: trimmedPoints !== '' ? trimmedPoints : '',
       easyImage,
       hardImage,
       answer,
@@ -67,6 +74,17 @@ export default function CardEditor({ card, categories, onSave, onCancel }) {
               value={label}
               onChange={e => setLabel(e.target.value)}
               placeholder="e.g. 100"
+            />
+          </label>
+
+          <label className="editor-field">
+            <span>⭐ Points:</span>
+            <input
+              type="number"
+              min={0}
+              value={points}
+              onChange={e => setPoints(e.target.value)}
+              placeholder="e.g. 100 (empty = use row points)"
             />
           </label>
 

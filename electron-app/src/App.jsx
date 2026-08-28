@@ -312,12 +312,14 @@ export default function App() {
       // Subtract points on undo
       const gotAnswer = action.gotAnswer !== false;
       if (gotAnswer) {
-        let pts;
-        if (action.customPoints !== undefined && action.customPoints !== null) {
-          pts = Number(action.customPoints);
-        } else {
-          const basePts = cardsData.points[action.row] || 0;
-          pts = Math.round(basePts * (action.mode === 'hard' ? 1 : 0.5));
+        let pts = action.pts;
+        if (pts === undefined) {
+          if (action.customPoints !== undefined && action.customPoints !== null) {
+            pts = Number(action.customPoints);
+          } else {
+            const basePts = cardsData.points[action.row] || 0;
+            pts = Math.round(basePts * (action.mode === 'hard' ? 1 : 0.5));
+          }
         }
         const teamId = action.teamId || activeTeamId;
         adjustTeamScore(teamId, -pts);
@@ -424,8 +426,24 @@ export default function App() {
           const mode = data.mode || 'easy';
           const teamId = data.teamId || activeTeamId; // support stealing
           const customPoints = data.customPoints;
-          pushUndo({ type: 'disable', row: c.row, col: c.col, gotAnswer, mode, teamId, customPoints });
-          log('ipc:disable-card', { row: c.row, col: c.col, label: c.label, gotAnswer, mode, teamId, customPoints });
+
+          // Award points (use the card's own points when set)
+          let pts;
+          if (gotAnswer) {
+            if (customPoints !== undefined && customPoints !== null) {
+              pts = Number(customPoints);
+            } else {
+              const hasCardPts = c.points !== undefined && c.points !== null && String(c.points).trim() !== '';
+              const basePts = (hasCardPts ? Number(c.points) : cardsData.points[c.row]) || 0;
+              pts = Math.round(basePts * (mode === 'hard' ? 1 : 0.5));
+            }
+            if (teamId) {
+              adjustTeamScore(teamId, pts);
+            }
+          }
+
+          pushUndo({ type: 'disable', row: c.row, col: c.col, gotAnswer, mode, teamId, customPoints, pts });
+          log('ipc:disable-card', { row: c.row, col: c.col, label: c.label, gotAnswer, mode, teamId, customPoints, pts });
 
           const nextCards = cardsData.cards.map(cd =>
             cd.row === c.row && cd.col === c.col ? { ...cd, enabled: false } : cd
@@ -440,20 +458,6 @@ export default function App() {
               ? { ...prev, enabled: false }
               : prev
           );
-
-          // Award points
-          if (gotAnswer) {
-            let pts;
-            if (customPoints !== undefined && customPoints !== null) {
-              pts = Number(customPoints);
-            } else {
-              const basePts = cardsData.points[c.row] || 0;
-              pts = Math.round(basePts * (mode === 'hard' ? 1 : 0.5));
-            }
-            if (teamId) {
-              adjustTeamScore(teamId, pts);
-            }
-          }
 
           if (stillAlive) {
             setFrozenCard({ ...c, enabled: false });
@@ -669,8 +673,9 @@ export default function App() {
       if (prev?.row === card.row && prev?.col === card.col) return null;
       return prev;
     });
-    // Award points to active team
-    const pts = cardsData.points[card.row] || 0;
+    // Award points to active team (use the card's own points when set)
+    const hasCardPts = card.points !== undefined && card.points !== null && String(card.points).trim() !== '';
+    const pts = (hasCardPts ? Number(card.points) : cardsData.points[card.row]) || 0;
     addPointsToActiveTeam(pts);
   }, [pushUndo, cardsData.points, addPointsToActiveTeam]);
 

@@ -363,7 +363,8 @@ export default function DevScreen() {
     const teamId = stealTeamId || activeTeamId;
     const teamName = teams.find(t => t.id === teamId)?.name || teamId;
     const catName = categories[card.col]?.name || '';
-    const basePts = points[card.row] || 0;
+    const hasCardPts = card.points !== undefined && card.points !== null && String(card.points).trim() !== '';
+    const basePts = (hasCardPts ? Number(card.points) : points[card.row]) || 0;
 
     let pts = 0;
     if (gotAnswer) {
