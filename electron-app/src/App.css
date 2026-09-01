@@ -993,7 +993,11 @@ body::after {
 }
 
 .editor-preview img {
-  max-height: 20vmin; object-fit: contain;
+  width: 100%;
+  height: 42vmin;
+  min-height: 42vmin;
+  max-height: 42vmin;
+  object-fit: contain;
   border-radius: var(--radius-sm);
   border: 1px solid rgba(255,255,255,0.1);
   background: rgba(0,0,0,0.3);
@@ -1245,12 +1249,13 @@ body::after {
 .subpage-content {
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
-  gap: 4vmin;
-  max-width: 90vw; max-height: 90vh;
+  gap: 2vmin;
+  max-width: 96vw; max-height: 98vh;
 }
 
 .subpage-image {
-  max-width: 80vw; max-height: 60vh;
+  width: min(98vw, 96vmin);
+  height: min(82vw, 70vmin);
   object-fit: contain;
   border-radius: var(--radius-lg);
   box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05);
@@ -1960,9 +1965,9 @@ input, textarea, .modal, .modal * {
 
 .ds-detail-image {
   width: 100%;
-  height: auto;
-  min-height: 6vmin;
-  max-height: 22vmin;
+  height: 42vmin;
+  min-height: 42vmin;
+  max-height: 42vmin;
   object-fit: contain;
   padding: 0.5vmin;
   flex: 1 1 auto;
@@ -2014,7 +2019,9 @@ input, textarea, .modal, .modal * {
 
 .ds-detail-answer-image {
   width: 100%;
-  max-height: 20vmin;
+  height: 42vmin;
+  min-height: 42vmin;
+  max-height: 42vmin;
   object-fit: contain;
   padding: 0.5vmin;
   border-top: 1px solid rgba(255,255,255,0.06);
@@ -2220,13 +2227,13 @@ input, textarea, .modal, .modal * {
 
 .answer-overlay__content {
   display: flex; flex-direction: column; align-items: center;
-  gap: 2.5vmin;
-  padding: 5vmin 6vmin;
+  gap: 2vmin;
+  padding: 4vmin 5vmin;
   border-radius: var(--radius-lg);
   background: var(--bg-1);
   border: 1px solid rgba(250, 204, 21, 0.3);
   box-shadow: 0 0 60px rgba(250, 204, 21, 0.15), 0 20px 50px rgba(0,0,0,0.5);
-  max-width: 80vw;
+  max-width: 98vw;
   animation: answerPopIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
@@ -2257,8 +2264,8 @@ input, textarea, .modal, .modal * {
 }
 
 .answer-overlay__image {
-  max-width: 45vw;
-  max-height: 40vh;
+  width: min(98vw, 96vmin);
+  height: min(82vw, 70vmin);
   object-fit: contain;
   border-radius: var(--radius);
   box-shadow: 0 4px 20px rgba(0,0,0,0.4);
