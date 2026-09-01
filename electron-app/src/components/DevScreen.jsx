@@ -847,9 +847,7 @@ export default function DevScreen() {
                       className="ds-detail-image"
                       onError={(e) => { e.target.style.display = 'none'; }}
                     />
-                  ) : (
-                    <div className="ds-detail-no-image">No hard image</div>
-                  )}
+                  ) : null}
                   {selected.hardTask && (
                     <div className="ds-detail-task">{selected.hardTask}</div>
                   )}
@@ -866,9 +864,7 @@ export default function DevScreen() {
                       className="ds-detail-image"
                       onError={(e) => { e.target.style.display = 'none'; }}
                     />
-                  ) : (
-                    <div className="ds-detail-no-image">No easy image</div>
-                  )}
+                  ) : null}
                   {selected.easyTask && (
                     <div className="ds-detail-task">{selected.easyTask}</div>
                   )}

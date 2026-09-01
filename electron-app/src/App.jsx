@@ -812,13 +812,7 @@ export default function App() {
                 <p className="subpage-audio-label">{showMedia.mode === 'hard' ? '🔴 NEHÉZ' : '🟢 KÖNNYŰ'} Hang</p>
                 <p className="subpage-meta">{showMedia.card.label} pont — {showMedia.categoryName}</p>
               </div>
-            ) : showMedia.textOnly ? (
-              <div className="subpage-text-only">
-                <div className="subpage-placeholder-icon">📝</div>
-                <p className="subpage-audio-label">Feladat</p>
-                <p className="subpage-meta">{showMedia.card.label} pont — {showMedia.categoryName}</p>
-              </div>
-            ) : (
+            ) : showMedia.textOnly ? null : (
               <div className="subpage-no-image">
                 <div className="subpage-placeholder-icon">🖼️</div>
                 <p>Nincs média a(z) {showMedia.mode === 'hard' ? 'nehéz' : 'könnyű'} módhoz</p>
