@@ -387,11 +387,11 @@ export default function App() {
           break;
         }
         case 'show-media': {
-          const { card, mode, image, audio, categoryName } = data;
+          const { card, mode, image, audio, textOnly, categoryName } = data;
           if (!card) return;
           stopAudio();
-          setShowMedia({ card, mode, image, audio, categoryName });
-          log('ipc:show-media', { mode, label: card.label, image, audio });
+          setShowMedia({ card, mode, image, audio, textOnly: !!textOnly, categoryName });
+          log('ipc:show-media', { mode, label: card.label, image, audio, textOnly: !!textOnly });
           break;
         }
         case 'hide-media':
@@ -793,6 +793,12 @@ export default function App() {
               {showMedia.mode === 'hard' ? '🔴 NEHÉZ (1×)' : '🟢 KÖNNYŰ (0.5×)'}
             </div>
 
+            {(showMedia.mode === 'hard' ? showMedia.card.hardTask : showMedia.card.easyTask) && (
+              <div className="subpage-task">
+                {showMedia.mode === 'hard' ? showMedia.card.hardTask : showMedia.card.easyTask}
+              </div>
+            )}
+
             {showMedia.image ? (
               <img
                 src={resolveMediaPath(showMedia.image)}
@@ -804,6 +810,12 @@ export default function App() {
               <div className="subpage-audio-only">
                 <div className="subpage-audio-icon">🎵</div>
                 <p className="subpage-audio-label">{showMedia.mode === 'hard' ? '🔴 NEHÉZ' : '🟢 KÖNNYŰ'} Hang</p>
+                <p className="subpage-meta">{showMedia.card.label} pont — {showMedia.categoryName}</p>
+              </div>
+            ) : showMedia.textOnly ? (
+              <div className="subpage-text-only">
+                <div className="subpage-placeholder-icon">📝</div>
+                <p className="subpage-audio-label">Feladat</p>
                 <p className="subpage-meta">{showMedia.card.label} pont — {showMedia.categoryName}</p>
               </div>
             ) : (
@@ -828,10 +840,6 @@ export default function App() {
                 </button>
               </div>
             )}
-
-            <button className="btn btn--secondary btn--large" onClick={() => { stopAudio(); setShowMedia(null); }}>
-              ✕ Bezárás
-            </button>
 
             {showMedia.audio && (
               <audio

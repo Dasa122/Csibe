@@ -11,6 +11,8 @@ export default function CardEditor({ card, categories, onSave, onCancel }) {
   const [easyImage, setEasyImage] = useState(card.easyImage || card.image || '');
   const [hardImage, setHardImage] = useState(card.hardImage || '');
   const [answer, setAnswer] = useState(card.answer || '');
+  const [easyTask, setEasyTask] = useState(card.easyTask || '');
+  const [hardTask, setHardTask] = useState(card.hardTask || '');
   const [answerImage, setAnswerImage] = useState(card.answerImage || '');
   const [easyAudio, setEasyAudio] = useState(card.easyAudio || card.audio || '');
   const [hardAudio, setHardAudio] = useState(card.hardAudio || '');
@@ -28,6 +30,8 @@ export default function CardEditor({ card, categories, onSave, onCancel }) {
       easyImage,
       hardImage,
       answer,
+      easyTask,
+      hardTask,
       answerImage: answerImage || '',
       easyAudio: easyAudio || '',
       hardAudio: hardAudio || '',
@@ -115,6 +119,26 @@ export default function CardEditor({ card, categories, onSave, onCancel }) {
               onChange={e => setAnswer(e.target.value)}
               placeholder="The answer to show..."
               rows={3}
+            />
+          </label>
+
+          <label className="editor-field">
+            <span>🟢 Easy task text:</span>
+            <textarea
+              value={easyTask}
+              onChange={e => setEasyTask(e.target.value)}
+              placeholder="Task given for the easy version, e.g. Mutasd meg kutyával!"
+              rows={2}
+            />
+          </label>
+
+          <label className="editor-field">
+            <span>🔴 Hard task text:</span>
+            <textarea
+              value={hardTask}
+              onChange={e => setHardTask(e.target.value)}
+              placeholder="Task given for the hard version, e.g. Mutasd meg kutya nélkül!"
+              rows={2}
             />
           </label>
 

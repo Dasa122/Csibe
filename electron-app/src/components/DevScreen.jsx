@@ -319,6 +319,31 @@ export default function DevScreen() {
     log('action:show-hard', { image, audio });
   }, [selected, showMode, stopAudioFull, categories]);
 
+  // Show only the task text for a mode on the main screen (no image/audio needed)
+  const handleShowText = useCallback((mode) => {
+    if (!selected) return;
+    const task = mode === 'hard' ? (selected.hardTask || '') : (selected.easyTask || '');
+    if (!task) return; // nothing to show
+    if (showMode === mode) {
+      handleHideMedia();
+      return;
+    }
+    stopAudioFull();
+    setShowMode(mode);
+    setShowAnswer(false);
+    if (window.electronAPI) {
+      window.electronAPI.selectOnMain('show-media', {
+        card: selected,
+        mode,
+        image: '',
+        audio: '',
+        textOnly: true,
+        categoryName: categories[selected.col]?.name || '',
+      });
+    }
+    log(`action:show-${mode}-text`, { task });
+  }, [selected, showMode, stopAudioFull, categories, handleHideMedia]);
+
   const handleRevealAnswer = useCallback(() => {
     log('action:reveal-answer', selected ? { row: selected.row, col: selected.col, label: selected.label } : null);
     // Hide any active media before revealing the answer
@@ -825,6 +850,9 @@ export default function DevScreen() {
                   ) : (
                     <div className="ds-detail-no-image">No hard image</div>
                   )}
+                  {selected.hardTask && (
+                    <div className="ds-detail-task">{selected.hardTask}</div>
+                  )}
                 </div>
 
                 {/* ── Easy image (bottom) ── */}
@@ -840,6 +868,9 @@ export default function DevScreen() {
                     />
                   ) : (
                     <div className="ds-detail-no-image">No easy image</div>
+                  )}
+                  {selected.easyTask && (
+                    <div className="ds-detail-task">{selected.easyTask}</div>
                   )}
                 </div>
               </div>
@@ -887,6 +918,28 @@ export default function DevScreen() {
                       onClick={handleShowEasy}
                     >
                       🟢 Show Easy
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* ── Show task text buttons (hidden when no text) ── */}
+              {(selected.hardTask || selected.easyTask) && (
+                <div className="ds-detail-controls">
+                  {selected.hardTask && (
+                    <button
+                      className={`btn btn--sm ${showMode === 'hard' ? 'btn--danger' : 'btn--secondary'}`}
+                      onClick={() => handleShowText('hard')}
+                    >
+                      📝 Show Hard Text
+                    </button>
+                  )}
+                  {selected.easyTask && (
+                    <button
+                      className={`btn btn--sm ${showMode === 'easy' ? 'btn--primary' : 'btn--secondary'}`}
+                      onClick={() => handleShowText('easy')}
+                    >
+                      📝 Show Easy Text
                     </button>
                   )}
                 </div>

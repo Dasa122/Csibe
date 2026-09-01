@@ -1257,6 +1257,20 @@ body::after {
   animation: imageReveal 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+.subpage-task {
+  font-size: 4.5vmin;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+  white-space: pre-wrap;
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.15);
+  border-radius: var(--radius);
+  padding: 2vmin 4vmin;
+  max-width: 80vw;
+  word-break: break-word;
+}
+
 @keyframes imageReveal {
   from { transform: scale(0.9); opacity: 0; filter: blur(10px); }
   to { transform: scale(1); opacity: 1; filter: blur(0); }
@@ -1986,6 +2000,20 @@ input, textarea, .modal, .modal * {
   padding: 1vmin 1.5vmin;
 }
 
+.ds-detail-task {
+  font-size: 1.7vmin;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: center;
+  white-space: pre-wrap;
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.15);
+  border-radius: var(--radius-sm);
+  padding: 0.8vmin 1.4vmin;
+  margin: 0.6vmin;
+  word-break: break-word;
+}
+
 .ds-detail-answer-image {
   width: 100%;
   max-height: 20vmin;
@@ -2249,7 +2277,8 @@ input, textarea, .modal, .modal * {
    AUDIO-ONLY DISPLAY (main screen overlay)
    ============================================================ */
 
-.subpage-audio-only {
+.subpage-audio-only,
+.subpage-text-only {
   display: flex; flex-direction: column; align-items: center;
   gap: 1.5vmin;
   padding: 4vmin 0;
@@ -2829,7 +2858,8 @@ input, textarea, .modal, .modal * {
 [data-theme="light"] .ds-mini-cell--disabled {
   text-decoration-color: rgba(15, 23, 42, 0.25);
 }
-[data-theme="light"] .ds-detail-answer-text {
+[data-theme="light"] .ds-detail-answer-text,
+[data-theme="light"] .ds-detail-task {
   background: rgba(56, 189, 248, 0.1);
   border-color: rgba(56, 189, 248, 0.22);
 }
