@@ -838,7 +838,7 @@ export default function App() {
             {showMedia.audio && (
               <audio
                 ref={audioRef}
-                src={resolveMediaPath(showMedia.audio)}
+                src={resolveMediaPath(showMedia.audio, 'audio')}
                 onEnded={() => setAudioPlaying(false)}
                 style={{ display: 'none' }}
               />

@@ -973,7 +973,7 @@ export default function DevScreen() {
                 </button>
               </div>
 
-              <audio ref={audioRef} src={resolveMediaPath(audioSrc)} onEnded={handleAudioEnded} style={{ display: 'none' }} />
+              <audio ref={audioRef} src={resolveMediaPath(audioSrc, 'audio')} onEnded={handleAudioEnded} style={{ display: 'none' }} />
             </>
           ) : (
             <div className="ds-detail-empty">

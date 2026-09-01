@@ -1,6 +1,7 @@
 const { app, BrowserWindow, screen, ipcMain, protocol, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { pathToFileURL } = require('url');
 
 // ── Logging ──────────────────────────────────────────────────
 const LOG_PREFIX = '[Main]';
@@ -305,11 +306,39 @@ app.on('second-instance', () => {
 app.whenReady().then(() => {
   log('App ready');
 
+  // Candidate roots for resolving relative media paths, in priority order.
+  // Lets users paste a full relative path and have it resolve to disk:
+  //   "2/ki/100/..."            → <project>/src/2/ki/100/...
+  //   "src/2/ki/100/..."        → <project>/src/2/ki/100/...
+  //   "electron-app/src/..."    → <workspace>/electron-app/src/...
+  const projectRoot = path.join(__dirname, '..');
+  const mediaRoots = [
+    path.join(projectRoot, 'src'),
+    projectRoot,
+    path.join(projectRoot, '..'),
+  ];
+  function resolveRelativeMedia(relPath) {
+    for (const root of mediaRoots) {
+      try {
+        const candidate = path.join(root, relPath);
+        if (fs.existsSync(candidate)) return candidate;
+      } catch { /* keep trying */ }
+    }
+    // Fallback: first root even if the file doesn't exist yet (clean 404)
+    return path.join(mediaRoots[0], relPath);
+  }
+
   // Register custom protocol to serve local files regardless of page origin
   // (solves file:// restrictions when page loads from http:// in dev mode)
-  protocol.handle('local-file', (request) => {
+  protocol.handle('local-file', async (request) => {
     try {
       const url = new URL(request.url);
+      // Relative media paths (renderer marks them with host "rel")
+      if (url.hostname === 'rel') {
+        const relPath = decodeURIComponent(url.pathname).replace(/^\/+/, '');
+        const resolved = resolveRelativeMedia(relPath);
+        return net.fetch(pathToFileURL(resolved).toString());
+      }
       let filePath = url.pathname;
       // On Windows, remove leading slash before drive letter (e.g. /C:/... → C:/...)
       if (process.platform === 'win32' && /^\/[a-zA-Z]:/.test(filePath)) {

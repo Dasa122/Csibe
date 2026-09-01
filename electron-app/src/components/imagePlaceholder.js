@@ -24,12 +24,16 @@ export const PLACEHOLDER_IMAGE = `data:image/svg+xml;charset=UTF-8,${PLACEHOLDER
 
 /**
  * Resolve a media path for use in <img src> or <audio src>.
- * - http(s):// and data: URLs pass through unchanged
+ * - http(s)://, data:, file:, blob: URLs pass through unchanged
  * - Absolute filesystem paths (/home/...) get local-file:// prefix
- * - Relative paths pass through unchanged
+ * - Relative paths are marked local-file://rel/... so the Electron main
+ *   process can resolve them against the project media roots. This lets
+ *   you paste a full relative path (e.g. "src/2/ki/...", "electron-app/src/...")
+ *   into the image/audio location field.
+ * - In a plain browser (dev preview) relative paths pass through unchanged.
  * - Handles spaces, accented chars (ő, ű, á, é, ó, etc.)
  */
-export function resolveMediaPath(rawPath) {
+export function resolveMediaPath(rawPath, kind = 'image') {
   if (!rawPath) return '';
   // Already a URL with protocol — pass through
   if (/^(https?:|data:|file:|blob:|local-file:)/i.test(rawPath)) return rawPath;
@@ -37,6 +41,17 @@ export function resolveMediaPath(rawPath) {
   if (rawPath.startsWith('/')) {
     return `local-file://${rawPath}`;
   }
-  // Relative path — pass through
+  // Relative paths:
+  // - Images: marked local-file://rel/... so the Electron main process can
+  //   resolve them against the project media roots. This lets you paste a
+  //   full relative path (e.g. "src/2/ki/...", "electron-app/src/...") into
+  //   the image location field.
+  // - Audio: passed through unchanged so it resolves against the page origin
+  //   (Vite dev server). Media playback over the custom protocol is
+  //   unreliable in Electron, so audio keeps the original working behavior.
+  // - In a plain browser (dev preview) relative paths pass through unchanged.
+  if (kind === 'image' && typeof window !== 'undefined' && window.electronAPI) {
+    return `local-file://rel/${rawPath}`;
+  }
   return rawPath;
 }
